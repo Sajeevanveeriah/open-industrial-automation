@@ -1,0 +1,95 @@
+name: OIA desktop installers
+
+on:
+  push:
+    branches:
+      - main
+      - release/oia-standalone-v2.2.1-20260902
+    paths:
+      - 'web/**'
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oia-desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      products: ${{ steps.scope.outputs.products }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo 'products=["suite"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'products=["suite","operations","control","hmi","alarms","historian","performance","integration","mes","materials","assets","quality","security","identity","deployment","migration"]' >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm --prefix desktop ci
+      - run: node desktop/verify.cjs
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        platform:
+          - id: linux
+            runner: ubuntu-24.04
+            arch: x64
+          - id: windows
+            runner: windows-2025
+            arch: x64
+          - id: mac
+            runner: macos-15-intel
+            arch: universal
+        product: ${{ fromJSON(needs.validate.outputs.products) }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 75
+    env:
+      OIA_PRODUCT: ${{ matrix.product }}
+      OIA_PLATFORM: ${{ matrix.platform.id }}
+      OIA_ARCH: ${{ matrix.platform.arch }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm --prefix desktop ci
+      - name: Build installer
+        working-directory: desktop
+        run: npm run build
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d dist/installers/${{ matrix.platform.id }}/${{ matrix.product }}
+          find dist/installers/${{ matrix.platform.id }}/${{ matrix.product }} -type f -print0 | sort -z | xargs -0 sha256sum > "dist/OIA-${{ matrix.product }}-${{ matrix.platform.id }}-SHA256SUMS.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OIA-${{ matrix.product }}-${{ matrix.platform.id }}-${{ matrix.platform.arch }}-${{ github.sha }}
+          path: |
+            dist/installers/${{ matrix.platform.id }}/${{ matrix.product }}/**
+            dist/OIA-${{ matrix.product }}-${{ matrix.platform.id }}-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
