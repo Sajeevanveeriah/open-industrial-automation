@@ -1,8 +1,12 @@
 /* Release-gate fixes loaded after the base and product styles. */
 
+[hidden] {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html:focus-within {
-    scroll-behaviour: auto !important;
+    scroll-behavior: auto !important;
   }
 
   *,
