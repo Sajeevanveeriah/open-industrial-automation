@@ -1,0 +1,250 @@
+name: Materialise standalone OIA source
+
+on:
+  push:
+    branches:
+      - release/oia-standalone-v2.2.1-20260902
+    paths:
+      - .github/workflows/00-bootstrap-standalone.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialise:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/oia-standalone-v2.2.1-20260902
+          fetch-depth: 0
+
+      - name: Retrieve exact source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/oia-source
+          git clone --filter=blob:none --no-checkout https://github.com/Sajeevanveeriah/sajeevanveeriah.github.io.git /tmp/oia-source
+          git -C /tmp/oia-source fetch origin 9db11e5ff2ed097ba7ec7537aec776179e04983a --depth=1
+          git -C /tmp/oia-source checkout --detach 9db11e5ff2ed097ba7ec7537aec776179e04983a
+          test "$(git -C /tmp/oia-source rev-parse HEAD)" = "9db11e5ff2ed097ba7ec7537aec776179e04983a"
+
+      - name: Port product, desktop, tests and design records
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf web desktop scripts docs tests dist
+          rm -f LICENSE README.md package.json package-lock.json .gitignore .editorconfig
+          mkdir -p web desktop scripts docs/design tests
+          cp -a /tmp/oia-source/public/open-industrial-automation/. web/
+          cp -a /tmp/oia-source/desktop/. desktop/
+          cp /tmp/oia-source/scripts/qa-oia-lib.mjs scripts/
+          cp /tmp/oia-source/scripts/qa-oia-tests.mjs scripts/
+          cp /tmp/oia-source/scripts/qa-oia.mjs scripts/
+          cp /tmp/oia-source/scripts/qa-oia-products.mjs scripts/
+          find /tmp/oia-source/docs/superpowers -type f -iname '*Open-Industrial-Automation*' -exec cp {} docs/design/ \;
+          cp web/LICENSE LICENSE
+
+      - name: Create standalone project configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > package.json <<'JSON'
+          {
+            "name": "open-industrial-automation",
+            "version": "2.2.1",
+            "description": "Vendor-neutral open-source industrial automation engineering, operations, MES, historian, quality, asset-care, integration and OT-governance suite.",
+            "type": "module",
+            "license": "Apache-2.0",
+            "private": false,
+            "scripts": {
+              "build": "node scripts/build.mjs",
+              "verify:source": "node scripts/verify-source.mjs",
+              "test:web": "node scripts/qa-oia.mjs",
+              "test:products": "node scripts/qa-oia-products.mjs",
+              "desktop:verify": "node desktop/verify.cjs",
+              "test": "npm run verify:source && npm run build && npm run test:web && npm run test:products && npm run desktop:verify"
+            },
+            "devDependencies": {
+              "axe-core": "4.12.1",
+              "playwright": "1.62.0"
+            }
+          }
+          JSON
+
+          cat > scripts/build.mjs <<'JS'
+          import { cp, mkdir, rm, writeFile } from 'node:fs/promises'
+          import { resolve } from 'node:path'
+          const source = resolve('web')
+          const target = resolve('dist')
+          await rm(target, { recursive: true, force: true })
+          await mkdir(target, { recursive: true })
+          await cp(source, target, { recursive: true })
+          await writeFile(resolve(target, '.nojekyll'), '\n', 'utf8')
+          console.log(`Built standalone web distribution at ${target}`)
+          JS
+
+          cat > scripts/verify-source.mjs <<'JS'
+          import { readFile, stat } from 'node:fs/promises'
+          const required = [
+            'web/index.html', 'web/styles.css', 'web/dub.css', 'web/quality.css',
+            'web/runtime-bootstrap.js', 'web/data.js', 'web/app.js', 'web/quality.js',
+            'web/product-shell.js', 'web/model.json', 'web/LICENSE', 'web/README.md',
+            'web/schemas/oia-project.schema.json', 'desktop/main.cjs',
+            'desktop/preload.cjs', 'desktop/build.cjs', 'desktop/product-catalog.json',
+            'scripts/qa-oia-lib.mjs', 'scripts/qa-oia-tests.mjs',
+            'scripts/qa-oia.mjs', 'scripts/qa-oia-products.mjs'
+          ]
+          for (const path of required) {
+            const info = await stat(path)
+            if (!info.isFile() || info.size === 0) throw new Error(`Missing or empty required file: ${path}`)
+          }
+          for (const path of ['web/model.json', 'web/manifest.webmanifest', 'web/schemas/oia-project.schema.json', 'desktop/product-catalog.json', 'package.json']) JSON.parse(await readFile(path, 'utf8'))
+          const catalog = JSON.parse(await readFile('desktop/product-catalog.json', 'utf8'))
+          if (catalog.products.length !== 16) throw new Error(`Expected 16 interconnected products, found ${catalog.products.length}`)
+          if (new Set(catalog.products.map((item) => item.id)).size !== 16) throw new Error('Duplicate product identifier')
+          const sourceText = await Promise.all(required.filter((path) => !path.endsWith('.json')).map((path) => readFile(path, 'utf8')))
+          const joined = sourceText.join('\n')
+          if (/[–—]/u.test(joined)) throw new Error('Unicode dash found in source')
+          if (/BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY/.test(joined)) throw new Error('Private key material detected')
+          const index = await readFile('web/index.html', 'utf8')
+          if (!index.includes('quality.css')) throw new Error('Accessibility stylesheet is not loaded')
+          const app = await readFile('web/app.js', 'utf8')
+          if (!app.includes('data-testid="plant-mode"')) throw new Error('Plant mode contract is missing')
+          if (!app.includes('role="progressbar"')) throw new Error('Progress semantics are missing')
+          console.log('Source verified: web suite, 16 products, desktop shell and release contracts.')
+          JS
+
+          cat > README.md <<'MD'
+          # Open Industrial Automation
+
+          Open Industrial Automation is an Apache-2.0, vendor-neutral software family for industrial automation engineering, HMI and SCADA, control intent, tags and I/O, alarms, historian, OEE, batch and MES, materials, maintenance, validation, OT cybersecurity, identity, deployment and legacy migration.
+
+          The complete suite and 15 focused products share one portable automation project model and one workspace. Browser and desktop editions are built from the same source.
+
+          ## Verify
+
+          ```bash
+          npm ci
+          npm run test
+          ```
+
+          ## Industrial boundary
+
+          This repository supplies software, schemas, tests, packaging and deployment automation. A production plant installation still requires site-specific PLC or DCS engineering, independent functional safety, qualified hardware, segmented networks, protocol configuration, FAT, SAT and commissioning.
+
+          ## Licence
+
+          Apache License 2.0. See `LICENSE`.
+          MD
+
+          cat > .gitignore <<'EOF'
+          node_modules/
+          desktop/node_modules/
+          dist/
+          release/
+          .DS_Store
+          *.log
+          EOF
+
+          cat > .editorconfig <<'EOF'
+          root = true
+          [*]
+          charset = utf-8
+          end_of_line = lf
+          insert_final_newline = true
+          indent_style = space
+          indent_size = 2
+          trim_trailing_whitespace = true
+          EOF
+
+      - name: Apply root-cause fixes from failed release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          index = Path('web/index.html')
+          text = index.read_text()
+          if 'quality.css' not in text:
+              text = text.replace('<link rel="stylesheet" href="./dub.css">', '<link rel="stylesheet" href="./dub.css">\n  <link rel="stylesheet" href="./quality.css">')
+          index.write_text(text)
+
+          app = Path('web/app.js')
+          text = app.read_text()
+          text = text.replace('<div><span>Mode</span><strong>${escapeHtml(process.mode)}</strong></div>', '<div><span>Mode</span><strong data-testid="plant-mode">${escapeHtml(process.mode)}</strong></div>')
+          text = text.replace('<div class="progress-track" aria-label="Current phase progress"><span style="width:${process.progress}%"></span></div>', '<div class="progress-track" role="progressbar" aria-label="Current phase progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${number(process.progress, 0)}"><span style="width:${process.progress}%"></span></div>')
+          app.write_text(text)
+
+          shell = Path('web/product-shell.js')
+          text = shell.read_text()
+          text = text.replace('name: "OIA Suite",', 'name: "Open Industrial Automation Suite",', 1)
+          text = text.replace('document.title = `${moduleTitle} - ${product.name}`;', "document.title = productId === 'suite' ? `${moduleTitle} - Open Industrial Automation Suite` : `${moduleTitle} - ${product.name}`;")
+          shell.write_text(text)
+
+          quality = Path('web/quality.js')
+          text = quality.read_text()
+          marker = '  function improveDynamicSemantics(root) {'
+          helper = '''  function improveScrollableRegions(root) {\n    root.querySelectorAll('.table-scroll, .hmi-stage-scroll, .process-mimic, .chart-wrap, .studio-main, .studio-sidebar, .studio-inspector').forEach((region, index) => {\n      if (!region.hasAttribute('tabindex')) region.setAttribute('tabindex', '0');\n      if (!region.hasAttribute('role')) region.setAttribute('role', 'region');\n      if (!region.hasAttribute('aria-label')) region.setAttribute('aria-label', `Scrollable engineering content ${index + 1}`);\n    });\n  }\n\n'''
+          if 'function improveScrollableRegions' not in text:
+              text = text.replace(marker, helper + marker)
+              text = text.replace('    labelModuleButtons(root);', '    labelModuleButtons(root);\n    improveScrollableRegions(root);')
+          quality.write_text(text)
+
+          css = Path('web/quality.css')
+          text = css.read_text()
+          text += '''\n\n/* Standalone release 2.2.1 accessibility and containment corrections. */\n.module-rail .brand-lockup strong { color: #171717 !important; }\n.module-rail .brand-lockup span,\n.module-rail .module-group-label,\n.module-rail .module-button span,\n.module-rail .module-button small,\n.module-rail .rail-footer p { color: #404040 !important; }\n.module-rail .module-button[aria-current="page"] span,\n.module-rail .module-button[aria-current="page"] small { color: #1e40af !important; }\nhtml[data-theme="dark"] .module-rail .brand-lockup strong,\nhtml[data-theme="dark"] .module-rail .module-button span,\nhtml[data-theme="dark"] .module-rail .module-button small,\nhtml[data-theme="dark"] .module-rail .rail-footer p { color: #f5f5f5 !important; }\nhtml[data-theme="dark"] .module-rail .brand-lockup span,\nhtml[data-theme="dark"] .module-rail .module-group-label { color: #d4d4d4 !important; }\nhtml[data-theme="light"] {\n  --muted: #404040;\n  --faint: #525252;\n  --line: #d4d4d4;\n  --line-strong: #a3a3a3;\n  --good: #166534;\n  --warning: #9a3412;\n  --danger: #991b1b;\n  --info: #1e40af;\n}\n.line-numbers { color: #c9d7da !important; }\n.hmi-stage, .hmi-stage strong { color: #f5f5f5 !important; }\n.hmi-stage-header span, .hmi-stage-footer span { color: #d4e1e4 !important; }\n.preview-equipment span { color: #bfdbfe !important; }\n.table-scroll, .panel, .panel-body, .grid, .main-aside, .section-stack { min-width: 0; max-width: 100%; }\n.table-scroll { overflow-x: auto; overflow-y: hidden; }\n.table-scroll > table { width: max-content; max-width: none; }\n.table-scroll:focus-visible,\n.hmi-stage-scroll:focus-visible,\n.process-mimic:focus-visible,\n.chart-wrap:focus-visible,\n.studio-main:focus-visible,\n.studio-sidebar:focus-visible,\n.studio-inspector:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }\n'''
+          css.write_text(text)
+
+          tests = Path('scripts/qa-oia-tests.mjs')
+          text = tests.read_text()
+          text = text.replace("const missionBefore = await page.locator('.queue-item', { hasText: 'MMS-260902-07' }).innerText()", "const missionBefore = await page.getByRole('button', { name: 'Advance mission MMS-260902-07', exact: true }).locator('xpath=..').innerText()")
+          text = text.replace("const missionAfter = await page.locator('.queue-item', { hasText: 'MMS-260902-07' }).innerText()", "const missionAfter = await page.getByRole('button', { name: 'Advance mission MMS-260902-07', exact: true }).locator('xpath=..').innerText()")
+          tests.write_text(text)
+
+          for path in ['desktop/main.cjs', 'desktop/build.cjs']:
+              p = Path(path)
+              text = p.read_text()
+              text = text.replace("path.resolve(__dirname, '..', 'public', 'open-industrial-automation')", "path.resolve(__dirname, '..', 'web')")
+              text = text.replace("path.join(repositoryRoot, 'public', 'open-industrial-automation')", "path.join(repositoryRoot, 'web')")
+              text = text.replace('https://github.com/Sajeevanveeriah/sajeevanveeriah.github.io/tree/main/public/open-industrial-automation', 'https://github.com/Sajeevanveeriah/open-industrial-automation')
+              p.write_text(text)
+
+          lib = Path('scripts/qa-oia-lib.mjs')
+          text = lib.read_text().replace("const exportRoot = resolve('out')", "const exportRoot = resolve('dist')").replace("const localPrefix = '/open-industrial-automation'", "const localPrefix = ''")
+          lib.write_text(text)
+
+          for path in ['web/data.js', 'web/model.json', 'desktop/product-catalog.json', 'desktop/package.json']:
+              p = Path(path)
+              p.write_text(p.read_text().replace('2.2.0', '2.2.1'))
+          PY
+
+      - name: Generate lockfiles and run source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          npm --prefix desktop install --package-lock-only --ignore-scripts
+          node --check web/runtime-bootstrap.js
+          node --check web/data.js
+          node --check web/app.js
+          node --check web/quality.js
+          node --check web/product-shell.js
+          node --check desktop/main.cjs
+          node --check desktop/preload.cjs
+          node --check desktop/build.cjs
+          node scripts/verify-source.mjs
+          node scripts/build.mjs
+
+      - name: Commit standalone source without workflow changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md LICENSE package.json package-lock.json .gitignore .editorconfig web desktop scripts docs
+          git diff --cached --quiet && { echo 'No source changes found' >&2; exit 1; }
+          git commit -m 'feat: materialise standalone Open Industrial Automation 2.2.1'
+          git push origin HEAD:release/oia-standalone-v2.2.1-20260902
