@@ -2,16 +2,27 @@ name: Release OIA
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths:
+      - package.json
+      - .github/workflows/release.yml
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
+
+concurrency:
+  group: oia-release-2.2.1
+  cancel-in-progress: false
+
+env:
+  OIA_VERSION: 2.2.1
 
 jobs:
   source-and-web:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,34 +30,185 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run verify:source
-      - run: npm run build
-      - name: Create release archives and SBOM
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: npm audit --audit-level=high
+      - run: npm --prefix desktop audit --audit-level=high
+      - name: Create source, web and SBOM files
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p release
-          tar -czf release/20260902-Open-Industrial-Automation-2.2.1-Source-Rev00.tar.gz \
-            --exclude=.git --exclude=node_modules --exclude=desktop/node_modules --exclude=dist --exclude=release .
-          (cd dist && zip -qr ../release/20260902-Open-Industrial-Automation-2.2.1-Web-Rev00.zip .)
-          npm sbom --sbom-format=spdx > release/20260902-Open-Industrial-Automation-2.2.1-SBOM-Rev00.spdx.json
-          sha256sum release/* > release/20260902-Open-Industrial-Automation-2.2.1-SHA256SUMS-Rev00.txt
+          tar -czf "release/20260902-Open-Industrial-Automation-${OIA_VERSION}-Source-Rev00.tar.gz" \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=desktop/node_modules \
+            --exclude=dist \
+            --exclude=release \
+            .
+          (cd dist && zip -qr "../release/20260902-Open-Industrial-Automation-${OIA_VERSION}-Web-Rev00.zip" .)
+          npm sbom --sbom-format=spdx > "release/20260902-Open-Industrial-Automation-${OIA_VERSION}-SBOM-Rev00.spdx.json"
+          sha256sum release/* > "release/20260902-Open-Industrial-Automation-${OIA_VERSION}-Source-Web-SHA256SUMS-Rev00.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: OIA-2.2.1-source-web-${{ github.sha }}
+          name: OIA-${{ env.OIA_VERSION }}-source-web
           path: release/**
           if-no-files-found: error
           retention-days: 90
-      - name: Publish GitHub release for a tag
-        if: startsWith(github.ref, 'refs/tags/')
+
+  suite-installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+            arch: x64
+          - platform: windows
+            runner: windows-2025
+            arch: x64
+          - platform: mac
+            runner: macos-15-intel
+            arch: universal
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      OIA_PRODUCT: suite
+      OIA_PLATFORM: ${{ matrix.platform }}
+      OIA_ARCH: ${{ matrix.arch }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm --prefix desktop ci
+      - run: node desktop/verify.cjs
+      - name: Build suite installer
+        working-directory: desktop
+        run: npm run build
+      - name: Generate installer checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "dist/installers/${{ matrix.platform }}/suite"
+          find "dist/installers/${{ matrix.platform }}/suite" -type f -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > "dist/OIA-suite-${{ matrix.platform }}-SHA256SUMS.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OIA-${{ env.OIA_VERSION }}-${{ matrix.platform }}-suite
+          path: |
+            dist/installers/${{ matrix.platform }}/suite/**
+            dist/OIA-suite-${{ matrix.platform }}-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    needs: [source-and-web, suite-installers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: OIA-${{ env.OIA_VERSION }}-*
+          path: assembled
+          merge-multiple: false
+      - name: Assemble stable release assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -d '' files < <(find release -type f -print0 | sort -z)
-          gh release create "${GITHUB_REF_NAME}" "${files[@]}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Open Industrial Automation ${GITHUB_REF_NAME}" \
-            --notes "Verified source and browser distribution. Desktop installer artefacts are produced independently for Windows, macOS and Linux. Plant deployment still requires site-specific control, safety and commissioning engineering." \
-            --target "$GITHUB_SHA"
+          mkdir -p release
+          cp -a "assembled/OIA-${OIA_VERSION}-source-web/." release/
+
+          for platform in linux windows mac; do
+            source_dir="assembled/OIA-${OIA_VERSION}-${platform}-suite"
+            test -d "$source_dir"
+            case "$platform" in
+              linux) label='Linux-x64' ;;
+              windows) label='Windows-x64' ;;
+              mac) label='macOS-Universal' ;;
+            esac
+            (cd assembled && zip -qr "../release/20260902-Open-Industrial-Automation-${OIA_VERSION}-${label}-Suite-Unsigned-Rev00.zip" "OIA-${OIA_VERSION}-${platform}-suite")
+          done
+
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/33618476164/artifacts?per_page=100" \
+            > /tmp/oia-focused-artifacts.json
+          test "$(jq -r '.total_count' /tmp/oia-focused-artifacts.json)" = '48'
+          test "$(jq '[.artifacts[] | select(.expired == true)] | length' /tmp/oia-focused-artifacts.json)" = '0'
+          jq '{
+            release: "2.2.1",
+            purpose: "Focused Windows, macOS and Linux product installers",
+            workflow_run: "https://github.com/Sajeevanveeriah/open-industrial-automation/actions/runs/33618476164",
+            expected_products: 16,
+            expected_platforms: 3,
+            artifact_count: .total_count,
+            artifacts: [.artifacts[] | {
+              id,
+              name,
+              size_in_bytes,
+              digest,
+              expired,
+              created_at,
+              expires_at
+            }]
+          }' /tmp/oia-focused-artifacts.json \
+            > "release/20260902-Open-Industrial-Automation-${OIA_VERSION}-Focused-Installer-Manifest-Rev00.json"
+
+          find release -maxdepth 1 -type f \
+            ! -name "20260902-Open-Industrial-Automation-${OIA_VERSION}-SHA256SUMS-Rev00.txt" \
+            -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > "release/20260902-Open-Industrial-Automation-${OIA_VERSION}-SHA256SUMS-Rev00.txt"
+
+          cat > /tmp/oia-release-notes.md <<'NOTES'
+          Open Industrial Automation 2.2.1 is the first standalone repository release.
+
+          Included:
+
+          - integrated browser suite and 15 focused interconnected products
+          - deterministic complete production and CIP sequence progression
+          - control, HMI, tags and I/O, alarms, historian, OEE, MES, materials, asset care, quality, OT security, identity, deployment and migration applications
+          - portable project model, schemas, documentation, source archive, web distribution and SPDX SBOM
+          - unsigned Windows x64, macOS Universal and Linux x64 suite installer bundles
+          - a manifest for the 48 separately built focused-product installer artifacts
+
+          Verification:
+
+          - source and data contracts
+          - browser module and interaction QA
+          - focused product QA
+          - desktop shell verification
+          - dependency vulnerability gates
+          - cross-platform installer builds and SHA-256 manifests
+          - deployed GitHub Pages verification is performed by the Pages workflow
+
+          Important boundary:
+
+          These are verified software distributions and engineering reference applications. The installers are not code-signed or Apple-notarised. A live industrial installation still requires site-specific PLC or DCS engineering, independent functional safety, qualified field hardware, network segmentation, protocol and identity configuration, FAT, SAT and commissioning by competent authorised engineers.
+          NOTES
+
+          tag="v${OIA_VERSION}"
+          mapfile -d '' assets < <(find release -maxdepth 1 -type f -print0 | sort -z)
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Open Industrial Automation ${OIA_VERSION}" \
+              --notes-file /tmp/oia-release-notes.md \
+              --target "$GITHUB_SHA"
+          else
+            gh release create "$tag" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Open Industrial Automation ${OIA_VERSION}" \
+              --notes-file /tmp/oia-release-notes.md \
+              --target "$GITHUB_SHA"
+          fi
