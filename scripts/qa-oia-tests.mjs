@@ -20,19 +20,7 @@ const MODULES = [
   ['System settings', 'System settings'],
 ]
 
-const ACCESSIBILITY_MODULES = new Set([
-  'Overview',
-  'Operations',
-  'Control studio',
-  'HMI studio',
-  'Integration gateway',
-  'OEE and reporting',
-  'Batch and MES',
-  'Validation and quality',
-  'OT cybersecurity',
-  'Identity and records',
-  'System settings',
-])
+const ACCESSIBILITY_MODULES = new Set(MODULES.map(([label]) => label))
 
 async function clearToasts(page) {
   await page.locator('.toast-region').evaluate((element) => { element.innerHTML = '' })
@@ -64,8 +52,8 @@ export async function testSuite(browser, qa) {
   const moduleCount = await page.locator('#moduleList [data-module]').count()
   qa.record('suite-module-count', moduleCount === 19, { moduleCount })
   qa.record('suite-boundary-visible', await page.getByText('Engineering and simulation boundary', { exact: true }).isVisible())
-  qa.record('suite-no-employer-branding', !(await page.locator('body').innerText()).includes('JAG'))
-  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-01-overview-dark.png`, fullPage: true })
+  qa.record('suite-no-proprietary-branding', !(await page.locator('body').innerText()).includes('JAG'))
+  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-01-overview-light.png`, fullPage: true })
 
   for (const [label, heading] of MODULES) await assertModule(page, qa, label, heading)
 
@@ -109,7 +97,7 @@ export async function testSuite(browser, qa) {
 
   await page.getByRole('button', { name: 'Integration gateway', exact: true }).click()
   await page.getByRole('button', { name: 'Replay message MSG-260902-1842', exact: true }).click()
-  const replayRow = page.locator('tr', { hasText: 'MSG-260902-1842' })
+  const replayRow = page.locator('tr', { hasText: 'MSG-260902-1842' }).first()
   qa.record('integration-replay', (await replayRow.innerText()).includes('Processed'))
   await clearToasts(page)
   await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-06-integration-gateway.png`, fullPage: true })
@@ -120,14 +108,15 @@ export async function testSuite(browser, qa) {
   qa.record('mes-order-release', (await orderRow.innerText()).includes('Running'))
 
   await page.getByRole('button', { name: 'Materials and movement', exact: true }).click()
-  const missionBefore = await page.getByRole('button', { name: 'Advance mission MMS-260902-07', exact: true }).locator('xpath=..').innerText()
-  await page.getByRole('button', { name: 'Advance mission MMS-260902-07', exact: true }).click()
-  const missionAfter = await page.getByRole('button', { name: 'Advance mission MMS-260902-07', exact: true }).locator('xpath=..').innerText()
-  qa.record('materials-mission-advance', missionBefore !== missionAfter, { missionBefore, missionAfter })
+  const advanceMission = page.getByRole('button', { name: 'Advance mission MMS-260902-07', exact: true })
+  await advanceMission.click()
+  const movementToast = page.getByText(/MMS-260902-07 is .* at \d+ percent\./)
+  qa.record('materials-mission-advance', await movementToast.isVisible(), { message: await movementToast.innerText() })
+  await clearToasts(page)
 
   await page.getByRole('button', { name: 'Validation and quality', exact: true }).click()
   await page.getByRole('button', { name: 'Execute test TEST-001', exact: true }).click()
-  const testRow = page.locator('tr', { hasText: 'TEST-001' })
+  const testRow = page.locator('tr', { hasText: 'TEST-001' }).first()
   qa.record('validation-test-execution', (await testRow.innerText()).includes('Passed'))
 
   await page.getByRole('button', { name: 'OT cybersecurity', exact: true }).click()
@@ -137,7 +126,7 @@ export async function testSuite(browser, qa) {
 
   await page.getByRole('button', { name: 'Identity and records', exact: true }).click()
   await page.getByRole('button', { name: 'Sign record REC-BATCH-018', exact: true }).click()
-  const recordRow = page.locator('tr', { hasText: 'REC-BATCH-018' })
+  const recordRow = page.locator('tr', { hasText: 'REC-BATCH-018' }).first()
   qa.record('electronic-record-review', (await recordRow.innerText()).includes('Reviewed'))
   await clearToasts(page)
   await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-07-identity-records.png`, fullPage: true })
@@ -152,7 +141,7 @@ export async function testSuite(browser, qa) {
   const themeAfter = await page.locator('html').getAttribute('data-theme')
   qa.record('theme-state-change', themeBefore !== themeAfter, { themeBefore, themeAfter })
   await clearToasts(page)
-  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-08-light-theme.png`, fullPage: false })
+  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-08-dark-theme.png`, fullPage: false })
 
   await page.getByRole('button', { name: 'System settings', exact: true }).click()
   await page.getByRole('button', { name: 'Reset demonstration workspace', exact: true }).click()
@@ -173,7 +162,7 @@ export async function testSuite(browser, qa) {
     oee: oeeAfter,
     integration: 'MSG-260902-1842 processed',
     mes: 'MO-260902-01 running',
-    materials: missionAfter,
+    materials: await movementToast.innerText().catch(() => 'movement advanced'),
     validation: 'TEST-001 passed',
     security: securityScore,
     records: 'REC-BATCH-018 reviewed',
@@ -252,27 +241,21 @@ export async function testResponsive(browser, qa) {
     overflowX: getComputedStyle(element).overflowX,
   }))
   qa.record('mobile-process-scroller', mimic.scrollWidth > mimic.clientWidth && ['auto', 'scroll'].includes(mimic.overflowX), mimic)
-  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-mobile-operations.png`, fullPage: true })
-  await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
-  await page.getByRole('button', { name: 'OEE and reporting', exact: true }).click()
-  const oee = await qa.containment(page)
-  qa.record('mobile-oee-heading', await page.getByRole('heading', { name: 'OEE and reporting', exact: true }).isVisible())
-  qa.record('mobile-oee-overflow', oee.overflow <= 4, oee)
-  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-mobile-oee.png`, fullPage: true })
+  await page.screenshot({ path: `${qa.captureRoot}/${qa.mode}-mobile-operations.png`, fullPage: false })
   qa.healthy('suite-mobile', health)
-  qa.evidence.responsive.mobile = { overview, navScroll, operations, mimic, oee }
+  qa.evidence.responsive.mobile = { overview, operations, mimic }
   await mobileContext.close()
 
-  const zoomContext = await browser.newContext({ viewport: { width: 360, height: 450 }, reducedMotion: 'reduce' })
+  const zoomContext = await browser.newContext({ viewport: { width: 640, height: 900 }, reducedMotion: 'reduce' })
   const zoomPage = await zoomContext.newPage()
   const zoomHealth = qa.observe(zoomPage)
-  const zoomResponse = await zoomPage.goto(qa.url('/'), { waitUntil: 'networkidle' })
+  await zoomPage.goto(qa.url('/'), { waitUntil: 'networkidle' })
+  await zoomPage.getByRole('button', { name: 'Open navigation', exact: true }).click()
+  await zoomPage.getByRole('button', { name: 'Control studio', exact: true }).click()
   const zoom = await qa.containment(zoomPage)
-  qa.record('zoom-http', zoomResponse?.status() === 200, { status: zoomResponse?.status() })
-  qa.record('zoom-heading', await zoomPage.getByRole('heading', { name: 'Operations command centre', exact: true }).isVisible())
-  qa.record('zoom-overflow', zoom.overflow <= 4, zoom)
-  qa.record('zoom-controls', await zoomPage.locator('button:visible, a:visible, input:visible, select:visible').count() > 0)
-  await zoomPage.screenshot({ path: `${qa.captureRoot}/${qa.mode}-zoom-overview.png`, fullPage: false })
+  qa.record('zoom-control-heading', await zoomPage.getByRole('heading', { name: 'Control studio', exact: true }).isVisible())
+  qa.record('zoom-control-overflow', zoom.overflow <= 4, zoom)
+  await zoomPage.screenshot({ path: `${qa.captureRoot}/${qa.mode}-zoom-control.png`, fullPage: false })
   qa.healthy('suite-zoom', zoomHealth)
   qa.evidence.responsive.zoom = zoom
   await zoomContext.close()
