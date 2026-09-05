@@ -55,7 +55,7 @@ export const CLEAN_PHASES = [
 ];
 export const SCENARIOS = [
  {id:'cold-start',name:'Cold start',description:'Start from empty equipment, ambient process temperatures and released example raw lots.',until:0,events:[]},
- {id:'baseline',name:'Steady production',description:'Thirty simulated minutes from cold start. Inspect the connected material train.',until:2400,events:[{at:0,type:'start',payload:{}}]},
+ {id:'baseline',name:'Steady production',description:'Forty simulated minutes from cold start. Inspect the connected material train.',until:2400,events:[{at:0,type:'start',payload:{}}]},
  {id:'pack-blockage',name:'Packaging bottleneck',description:'Film break at minute 40. Follow inventory growth upstream and recover without losing material.',until:3600,events:[{at:0,type:'start',payload:{}},{at:2400,type:'fault',payload:{id:'pack-film'}}]},
  {id:'steam-failure',name:'Steam interruption',description:'Loss of steam stops peeling and changes the blancher response.',until:3000,events:[{at:0,type:'start',payload:{}},{at:2400,type:'fault',payload:{id:'steam-low'}}]},
  {id:'cold-chain',name:'Cold-chain upset',description:'Refrigeration failure links thermal behaviour, feed permissives and quality holds.',until:3300,events:[{at:0,type:'start',payload:{}},{at:2400,type:'fault',payload:{id:'freezer-loss'}}]},
@@ -71,7 +71,6 @@ export const SOURCES = [
  {id:'FF-01',kind:'Public site context',title:'Farm Frites - Horsham frozen potato manufacturing facility',url:'https://www.farmfrites.com/en-au/news/factory-australia/',checked:'2026-09-05',supports:'Dooen location; up to 250,000 t/year raw potatoes; 24/7 operation; frozen fries and specialities; commissioning planned early 2027. Not hourly capacity or control settings.'},
  {id:'EPA-01',kind:'Public site context',title:'EPA Victoria - development licence DL000300070',url:'https://www.epa.vic.gov.au/public-registers/permissions/DL000300070',checked:'2026-09-05',supports:'Food processing and sewage-treatment activities at Freight Terminal Road, Dooen. Model discharge figures are not licence limits.'},
  {id:'TOMRA-01',kind:'Generic process reference',title:'TOMRA - potato sorting, grading and peeling',url:'https://www.tomra.com/en-gb/food/machines/potatoes',checked:'2026-09-05',supports:'Generic potato sorting and steam-peeling process categories. Does not establish equipment supplied to Dooen.'},
- {id:'TOMRA-02',kind:'Generic process reference',title:'TOMRA - steam peeling line',url:'https://www.tomra.com/en-gb/food/machines/peeling-line',checked:'2026-09-05',supports:'Steam peeling and peel separation as established processing operations. No vendor selection is inferred.'},
  {id:'PROCESS-01',kind:'Generic process reference',title:'ODFOOD - frozen French fries processing line',url:'https://www.odfoodmachine.com/solution/frozen-french-fries-production-line/',checked:'2026-09-05',supports:'Generic wash, peel, cut, blanch, dry, par-fry, cool, freeze and pack sequence. Supplier-scale figures are not used as Dooen data.'}
 ];
 export const ASSUMPTIONS = [
@@ -89,3 +88,4 @@ export const ASSUMPTIONS = [
  ['Persistence','Explicit save/export and local browser storage. Replay imports are versioned and validated. Maximum simulated run: 24 h; 3,000 recorded commands.'],
  ['Presentation','Independent engineering study for review; not commissioned, endorsed or verified by Farm Frites.']
 ];
+

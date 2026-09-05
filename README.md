@@ -18,3 +18,10 @@ This repository supplies software, schemas, tests, packaging and deployment auto
 ## Licence
 
 Apache License 2.0. See `LICENSE`.
+
+
+## Potato processing simulation
+
+Open the connected [potato plant simulation](https://sajeevanveeriah.github.io/open-industrial-automation/potato/). The model is an independent, synthetic engineering study for Dooen review, not a verified digital twin. See [model documentation](simulator/README.md).
+
+Run domain tests with `npm run test:simulation`. The existing suite and desktop sources remain available.

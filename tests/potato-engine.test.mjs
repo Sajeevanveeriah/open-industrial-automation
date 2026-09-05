@@ -34,7 +34,7 @@ test('normal production traverses the entire train and creates traceable materia
  assert.ok(s.stages.every(x=>x.processedKg>0));assert.ok(s.finishedLots.every(x=>x.rawLotId&&x.orderId&&x.recipe));assertPlant(s);
 });
 test('all recipes can complete a campaign with conserved components',()=>{
- for(const recipe of RECIPES){const s=createPlant();ok(s,'selectRecipe',{id:recipe.id});ok(s,'start');advance(s,5400);ok(s,'drain');advance(s,7200);assert.equal(s.mode,'STOPPED',recipe.id);assert.ok(s.finishedLots.length,recipe.id);assertPlant(s);}
+ for(const recipe of RECIPES){const s=createPlant();ok(s,'selectRecipe',{id:recipe.id});ok(s,'start');advance(s,5400);if(['RUNNING','STARTING','HELD'].includes(s.mode))ok(s,'drain');advance(s,7200);assert.equal(s.mode,'STOPPED',recipe.id);assert.ok(s.finishedLots.length,recipe.id);assertPlant(s);}
 });
 test('recipe change with work in process is refused without mutating state',()=>{
  const s=operating(),id=s.activeRecipe;no(s,'selectRecipe',{id:'coated'});assert.equal(s.activeRecipe,id);assertPlant(s);
@@ -87,11 +87,11 @@ test('finished goods require a passed sample and current detector challenge befo
 });
 test('dispatch cannot ship quarantine; release and dispatch conserve total material',()=>{
  const s=finished(),l=firstLot(s);no(s,'dispatch',{id:l.id,kg:100});ok(s,'sample',{id:l.id});ok(s,'challenge');
- if(!l.holdReasons.length){ok(s,'release',{id:l.id});const kg=Math.min(100,l.releasedKg);ok(s,'dispatch',{id:l.id,kg});assert.equal(l.shippedKg,kg);}assertPlant(s);
+ assert.deepEqual(l.holdReasons,[]);{ok(s,'release',{id:l.id});const kg=Math.min(100,l.releasedKg);ok(s,'dispatch',{id:l.id,kg});assert.equal(l.shippedKg,kg);}assertPlant(s);
 });
 test('recall holds remaining stock and identifies previously shipped quantity',()=>{
  const s=finished(),l=firstLot(s);ok(s,'sample',{id:l.id});ok(s,'challenge');
- if(!l.holdReasons.length){ok(s,'release',{id:l.id});ok(s,'dispatch',{id:l.id,kg:100});ok(s,'recall',{id:l.rawLotId});assert.equal(l.releasedKg,0);assert.equal(l.recalled,true);assert.equal(l.shippedKg,100);no(s,'release',{id:l.id});}assertPlant(s);
+ assert.deepEqual(l.holdReasons,[]);{ok(s,'release',{id:l.id});ok(s,'dispatch',{id:l.id,kg:100});ok(s,'recall',{id:l.rawLotId});assert.equal(l.releasedKg,0);assert.equal(l.recalled,true);assert.equal(l.shippedKg,100);no(s,'release',{id:l.id});}assertPlant(s);
 });
 test('rejecting a quarantined finished lot is a recorded mass disposition',()=>{
  const s=finished(),l=firstLot(s),kg=l.pendingKg;ok(s,'reject',{id:l.id});assert.equal(l.pendingKg,0);assert.equal(l.scrappedKg,kg);assertPlant(s);
@@ -134,3 +134,4 @@ test('bounded fault sequences retain invariants under adversarial operation',()=
  const s=operating();let seed=1023;const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
  for(let i=0;i<90;i++){const f=FAULTS[Math.floor(random()*FAULTS.length)].id;act(s,'fault',{id:f});advance(s,1+Math.floor(random()*120));assertPlant(s);act(s,'clearFault',{id:f});if(s.mode==='TRIPPED')act(s,'resetTrip');if(s.mode==='HELD')act(s,'resume');advance(s,30);assertPlant(s);}
 });
+

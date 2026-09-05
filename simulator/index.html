@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Independent potato-processing automation simulation for engineering review. Synthetic process, controls, MES, quality and utilities.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="theme-color" content="#f4f4ee"><title>Potato Plant | Open Industrial Automation</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<a class="skip" href="#workspace">Skip to workspace</a>
+<div id="app"></div>
+<div id="notice" role="status" aria-live="polite"></div>
+<dialog id="replace-dialog" aria-labelledby="replace-title"><h2 id="replace-title">Replace the current run?</h2><p>Export or save first if you need this run. This replaces the simulation in this tab only.</p><div class="actions"><button id="cancel-replace">Keep current run</button><button id="confirm-replace" class="primary">Replace run</button></div></dialog>
+<input id="import-file" type="file" accept="application/json,.json" hidden>
+<script type="module" src="./app.mjs"></script>
+</body></html>

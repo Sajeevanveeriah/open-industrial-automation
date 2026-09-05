@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   model:
-    runs-on: windows-2025
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -21,3 +21,4 @@ jobs:
           node-version: 24
       - name: Deterministic model and domain tests
         run: node --test --experimental-test-coverage tests/potato-engine.test.mjs
+

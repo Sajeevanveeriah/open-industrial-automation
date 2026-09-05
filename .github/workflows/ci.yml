@@ -22,9 +22,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run test:simulation
       - run: npm run verify:source
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:simulation-ui
       - run: npm run test:web
       - run: npm run test:products
       - run: npm --prefix desktop ci
@@ -40,3 +42,4 @@ jobs:
             /tmp/oia-product-qa
           if-no-files-found: warn
           retention-days: 30
+
