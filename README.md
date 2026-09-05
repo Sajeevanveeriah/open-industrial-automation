@@ -1,29 +1,29 @@
-# Potato Plant Digital Twin - Open Industrial Automation
+# Potato plant digital twin
 
-The main website now opens the potato-processing digital-twin demonstrator: 15 connected operations from whole-potato receiving to frozen-product packing and palletising. A paused 40-minute production scenario makes the material train inspectable immediately. This is an illustrative model, not a calibrated replica of the actual Dooen plant.
+A browser simulation of the complete potato material journey for independent Farm Frites Dooen engineering review. The only deployed application is the potato plant. The retired water/mixing suite and desktop installers have been removed.
 
-Open Industrial Automation is an Apache-2.0, vendor-neutral software family for industrial automation engineering, HMI and SCADA, control intent, tags and I/O, alarms, historian, OEE, batch and MES, materials, maintenance, validation, OT cybersecurity, identity, deployment and legacy migration.
+## Run
 
-The complete suite and 15 focused products share one portable automation project model and one workspace. The legacy suite remains at `/suite/`. Installer and installer-release workflows have been removed; desktop source remains dormant.
-
-## Verify
-
-```bash
+```sh
 npm ci
-npm run test
+npm test
+npm run dev
 ```
 
-## Industrial boundary
+`npm run build` creates the static GitHub Pages site in `dist/`. Standard public-repository GitHub hosted runners verify and deploy `main`. No installer builds run.
 
-This repository supplies software, schemas, tests, packaging and deployment automation. A production plant installation still requires site-specific PLC or DCS engineering, independent functional safety, qualified hardware, segmented networks, protocol configuration, FAT, SAT and commissioning.
+## Review
 
-## Licence
+15 connected operations cover receiving, washing, peeling, sorting, cutting, blanching, drying, coating/forming, frying, cooling, freezing, inspection, packing and palletising. The cold store and dispatch follow quality release. Ten workspaces expose process controls, intake, production, quality and genealogy, utilities, maintenance, alarms, integrations, scenarios and model references.
 
-Apache License 2.0. See `LICENSE`.
+The example opens at 40 simulated minutes with the clock paused. Select equipment, play or step the clock, or choose a scenario. Export runs before replacing them.
 
+## Delivery verification
 
-## Potato processing simulation
+`npm run test:simulation` checks the deterministic model. `npm run test:delivery` checks the build. `npm run test:migration` installs root and nested legacy cache-first workers and verifies automatic replacement without manual reload, preserving neighbouring caches and local saved data. `npm run test:simulation-ui` exercises ten routes, three widths, commands, quality/dispatch, export, roles and every retired bookmark. CI uploads screenshots and results, then repeats browser checks on the public deployment.
 
-Open the connected [potato plant simulation](https://sajeevanveeriah.github.io/open-industrial-automation/potato/). The model is an independent, synthetic engineering study for Dooen review, not a verified digital twin. See [model documentation](simulator/README.md).
+All old entry points redirect to the root potato application. A scoped migration worker removes only this project's old cached assets. It never caches new application responses.
 
-Run domain tests with `npm run test:simulation`. The existing suite and desktop sources remain available.
+## Model boundary
+
+This is an independent illustrative simulation, not a calibrated replica or an endorsed Farm Frites control system. Operating values, equipment arrangement and records are synthetic. No real PLC or plant is connected. See `simulator/README.md` and the in-app Engineering reference for model assumptions and validation scope.

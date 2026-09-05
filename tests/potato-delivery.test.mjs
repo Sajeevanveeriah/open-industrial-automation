@@ -2,26 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-test('published root and alias open the potato twin with resolvable local assets',async()=>{
- for(const folder of ['dist','dist/potato']) {
-  const html=await readFile(`${folder}/index.html`,'utf8');
-  assert.match(html,/<title>Potato Plant Digital Twin/);
-  assert.doesNotMatch(html,/src="\.\/app.js"/);
-  for(const match of html.matchAll(/(?:src|href)="(\.\/[^"#]+)"/g)) await access(resolve(folder,match[1].split('?')[0]));
-  const app=await readFile(`${folder}/app.mjs`,'utf8');
-  for(const match of app.matchAll(/from '(\.\/[^']+)'/g)) await access(resolve(folder,match[1].split('?')[0]));
- }
- assert.match(await readFile('dist/suite/index.html','utf8'),/Open Industrial Automation/);
- await access('dist/suite/products/index.html');
+test('published root opens potato with resolvable assets',async()=>{
+ const html=await readFile('dist/index.html','utf8');assert.match(html,/<title>Potato Plant Digital Twin/);
+ for(const m of html.matchAll(/(?:src|href)="(\.\/[^"#]+)"/g))await access(resolve('dist',m[1].split('?')[0]));
+ const app=await readFile('dist/app.mjs','utf8');
+ for(const m of app.matchAll(/from '(\.\/[^']+)'/g))await access(resolve('dist',m[1].split('?')[0]));
+ assert.doesNotMatch(app,/Open original OIA suite/);
 });
-test('root cache migration cannot keep serving the water-process application',async()=>{
- const sw=await readFile('dist/sw.js','utf8');
- assert.match(sw,/skipWaiting/);assert.match(sw,/clients.claim/);
- assert.doesNotMatch(sw,/caches.match|respondWith/);
+test('retired application and installers are absent; old bookmarks redirect',async()=>{
+ for(const path of ['web','desktop','dist/model.json','dist/suite/model.json','.github/workflows/desktop.yml','.github/workflows/release.yml'])await assert.rejects(access(path));
+ for(const path of ['potato','suite','products/operations','suite/products/operations','demo','studio'])assert.match(await readFile(`dist/${path}/index.html`,'utf8'),/http-equiv="refresh".*potato-only-3#plant/);
+ assert.match(await readFile('dist/suite/sw.js','utf8'),/client.navigate/);
 });
-test('installer workflows are absent and browser gates remain',async()=>{
- for(const p of ['desktop.yml','release.yml']) await assert.rejects(access(`.github/workflows/${p}`));
- const ci=await readFile('.github/workflows/ci.yml','utf8');
- assert.doesNotMatch(ci,/--prefix desktop|desktop:verify/);
- assert.match(ci,/test:simulation-ui/);assert.match(ci,/test:delivery/);
+test('delivery has cache migration and live browser gates',async()=>{
+ for(const path of ['ci.yml','pages.yml']){const workflow=await readFile('.github/workflows/'+path,'utf8');assert.match(workflow,/test:migration/);assert.match(workflow,/test:simulation-ui/);assert.doesNotMatch(workflow,/test:web|test:products|desktop:verify/);}
 });

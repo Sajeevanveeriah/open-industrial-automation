@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {resolve,extname,sep} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const {chromium}=await import(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES ? pathToFileURL(resolve(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,'playwright/index.mjs')).href : 'playwright');
@@ -14,7 +14,9 @@ try{
  async function openRoute(name){await page.getByRole('link',{name,exact:true}).click();await page.getByRole('heading',{name,exact:true}).waitFor({state:'visible'});}
  await page.goto(base+'/');await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();
  assert.equal(await page.locator('.equipment-art').count(),15);
- assert.equal(await page.locator('.rail-bottom a').getAttribute('href'),new URL(base+'/suite/').pathname);
+ const rows=await page.locator('.ribbon').evaluateAll(es=>es.map(e=>[...e.querySelectorAll('.unit')].map(u=>({name:u.querySelector('strong').getBoundingClientRect().top,flow:u.querySelector('.flow').getBoundingClientRect().top}))));
+ for(const row of rows){assert.ok(Math.max(...row.map(x=>x.name))-Math.min(...row.map(x=>x.name))<1,'Equipment labels align');assert.ok(Math.max(...row.map(x=>x.flow))-Math.min(...row.map(x=>x.flow))<1,'Equipment flow baselines align');} 
+ assert.equal(await page.getByRole('link',{name:'Open original OIA suite'}).count(),0);
  const routes=['Process overview','Control & I/O','Production & intake','Quality & genealogy','Utilities & environment','Maintenance & sanitation','Alarms & historian','Integration lab','Scenario studio','Engineering reference'];
  for(const name of routes){await openRoute(name);await page.getByRole('heading',{name,exact:true}).waitFor();assert.equal(await page.locator('body').evaluate(e=>e.scrollWidth>innerWidth),false,name+' overflow');}
  async function preset(name){await openRoute('Scenario studio');await page.getByRole('button',{name:new RegExp('^'+name+' ')}).click();await page.getByRole('button',{name:'Replace run',exact:true}).click();await page.getByRole('dialog').waitFor({state:'hidden'});}
@@ -29,6 +31,11 @@ try{
  await page.getByRole('combobox',{name:'Role simulation'}).selectOption('reviewer');await page.getByRole('button',{name:'Start',exact:true}).click();assert.match(await page.locator('#notice').innerText(),/reviewer.*cannot/);await page.getByRole('combobox',{name:'Role simulation'}).selectOption('instructor');
  await page.getByRole('button',{name:'Dark',exact:true}).click();assert.equal(await page.locator('body').getAttribute('data-theme'),'dark');await page.getByRole('button',{name:'Light',exact:true}).click();
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:1000});for(const name of routes){await openRoute(name);const layout=await page.evaluate(()=>({overflow:document.body.scrollWidth>innerWidth,offenders:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right}))}));assert.equal(layout.overflow,false,name+' overflow at '+width+' '+JSON.stringify(layout.offenders));}}
+ for(const alias of ['suite/','potato/','products/operations/','suite/products/operations/','demo/','studio/']){await page.goto(base+'/'+alias);await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();assert.equal(new URL(page.url()).pathname,new URL(base+'/').pathname);assert.equal(await page.locator('.equipment-art').count(),15);}
+ await mkdir('/tmp/oia-qa',{recursive:true});
+ await page.setViewportSize({width:1440,height:1100});await page.screenshot({path:'/tmp/oia-qa/potato-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/oia-qa/potato-mobile.png',fullPage:true});
+ await writeFile('/tmp/oia-qa/result.json',JSON.stringify({base,routes:10,viewports:[390,768,1440],equipment:15,legacyAliases:6,consoleErrors:errors},null,2));
  await page.keyboard.press('Tab');assert.notEqual(await page.evaluate(()=>document.activeElement.tagName),'BODY');
  assert.deepEqual(errors,[]);console.log('PASS: ten routes, three viewports, 15 equipment selectors, hold/resume, trip guards/recovery, quality release/dispatch, tag filtering, time lens, save/export, role restrictions, themes and keyboard focus.');
 }finally{await browser?.close();if(server)await new Promise(r=>server.close(r));}

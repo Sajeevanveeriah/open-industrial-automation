@@ -27,9 +27,8 @@ jobs:
       - run: npm run build
       - run: npm run test:delivery
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:migration
       - run: npm run test:simulation-ui
-      - run: npm run test:web
-      - run: npm run test:products
       - run: npm audit --omit=dev --audit-level=high
       - uses: actions/upload-artifact@v4
         if: always()
@@ -37,7 +36,6 @@ jobs:
           name: oia-quality-${{ github.sha }}
           path: |
             /tmp/oia-qa
-            /tmp/oia-product-qa
           if-no-files-found: warn
           retention-days: 30
 
