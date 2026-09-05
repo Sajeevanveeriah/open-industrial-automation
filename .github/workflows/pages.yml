@@ -25,9 +25,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run test:simulation
       - run: npm run verify:source
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:simulation-ui
       - run: npm run test:web
       - run: npm run test:products
       - uses: actions/upload-pages-artifact@v3
@@ -94,6 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           export OIA_BASE_URL="${OIA_BASE_URL%/}"
+          npm run test:simulation-ui
           npm run test:web
           npm run test:products
       - name: Upload live deployment evidence
@@ -104,3 +107,4 @@ jobs:
           path: /tmp/oia-qa
           if-no-files-found: error
           retention-days: 90
+

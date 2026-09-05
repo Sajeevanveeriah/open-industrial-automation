@@ -1,0 +1,24 @@
+name: Potato simulation verification
+on:
+  push:
+    branches: ['saj/potato-plant-simulation-20260905']
+  pull_request:
+    paths: ['simulator/**', 'tests/potato-*.mjs', 'scripts/potato-*.mjs', '.github/workflows/potato-simulation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: potato-verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Deterministic model and domain tests
+        run: node --test --experimental-test-coverage tests/potato-engine.test.mjs
+
