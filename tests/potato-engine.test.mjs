@@ -142,3 +142,21 @@ test('late quality hold identifies earlier shipments from the same finished lot'
 test('invalid control identifiers do not mutate loops',()=>{
  const s=createPlant(),before=JSON.stringify(s.loops);no(s,'tune',{id:'unknown-loop',kp:2,ki:0.1});no(s,'setpoint',{id:'unknown-loop',value:80});assert.equal(JSON.stringify(s.loops),before);
 });
+
+test('Stop retains the active campaign and WIP; Start restarts it without new sanitation or allocation',()=>{
+ const s=operating(),id=s.activeOrderId,wip=summarise(s).wipKg,fed=s.ledger.rawFedKg;
+ ok(s,'stop');assert.equal(s.mode,'STOPPED');assert.ok(s.stages.every(x=>x.flowKgS===0));
+ advance(s,600);assert.equal(s.ledger.rawFedKg,fed);assert.equal(summarise(s).wipKg,wip);
+ ok(s,'start');assert.equal(s.activeOrderId,id);assert.equal(s.mode,'STARTING');advance(s,2400);assert.ok(s.ledger.rawFedKg>fed);assertPlant(s);
+ assert.deepEqual(importRun(exportRun(s)),s);
+});
+test('Hold and Stop preserve drain intent and never restart raw feed',()=>{
+ for(const command of ['hold','stop']){const s=operating();ok(s,'drain');advance(s,30);const fed=s.ledger.rawFedKg;ok(s,command);advance(s,60);ok(s,command==='hold'?'resume':'start');advance(s,7200);assert.equal(s.ledger.rawFedKg,fed);assert.equal(s.mode,'STOPPED');assertPlant(s);}
+});
+test('Resume during cold warm-up cannot bypass thermal readiness',()=>{
+ const s=createPlant();ok(s,'start');advance(s,10);ok(s,'hold');ok(s,'resume');assert.equal(s.mode,'STARTING');advance(s,10);assert.equal(s.ledger.rawFedKg,0);
+});
+test('Stop cannot clear a trip; sanitation can be interrupted and restarted',()=>{
+ const tripped=operating();ok(tripped,'estop');no(tripped,'stop');assert.equal(tripped.mode,'TRIPPED');
+ const s=createPlant();ok(s,'clean');advance(s,30);ok(s,'stop');assert.equal(s.clean.state,'DIRTY');no(s,'start');ok(s,'clean');assert.equal(s.clean.elapsed,0);advance(s,1200);assert.equal(s.clean.state,'CLEAN');assertPlant(s);
+});
