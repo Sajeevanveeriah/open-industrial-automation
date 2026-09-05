@@ -16,7 +16,7 @@ npm run dev
 
 15 connected operations cover receiving, washing, peeling, sorting, cutting, blanching, drying, coating/forming, frying, cooling, freezing, inspection, packing and palletising. The cold store and dispatch follow quality release. Ten workspaces expose process controls, intake, production, quality and genealogy, utilities, maintenance, alarms, integrations, scenarios and model references.
 
-The example opens at 40 simulated minutes with the clock paused. Select equipment, play or step the clock, or choose a scenario. Export runs before replacing them.
+The example opens stopped at 40 simulated minutes. Start begins the retained campaign and clock. Stop halts motion without discarding material. Drain empties the line; Hold/Resume preserve drain intent. Select equipment, play or step the clock, or choose a scenario. Export runs before replacing them.
 
 ## Delivery verification
 

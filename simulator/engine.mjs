@@ -11,17 +11,18 @@ const wip = s => s.stages.reduce((n,x) => n + x.massKg,0);
 const rawAvailable = s => s.rawLots.find(x => x.grade === 'RELEASED' && x.kg > 1e-6);
 const queuedOrder = s => s.orders.find(x => x.status === 'QUEUED' && x.recipe === s.activeRecipe);
 const activeOrder = s => s.orders.find(x => x.id === s.activeOrderId);
+const thermalReady = s => Object.values(s.loops).every(l=>Math.abs(l.pv-l.sp)<4);
 const no = reason => ({ok:false,reason});
 const yes = reason => ({ok:true,reason});
 const roles = ['instructor','operator','engineer','quality','maintenance','reviewer'];
 const permissions = {
- operator:['start','hold','resume','drain','estop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile'],
- engineer:['start','hold','resume','drain','estop','resetTrip','ack','feed','setpoint','tune','speed','selectRecipe','reconcile'],
+ operator:['start','stop','hold','resume','drain','estop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile'],
+ engineer:['start','stop','hold','resume','drain','estop','resetTrip','ack','feed','setpoint','tune','speed','selectRecipe','reconcile'],
  quality:['ack','sample','challenge','release','reject','approveRaw','rejectRaw','recall','hold','estop'],
  maintenance:['ack','hold','estop','isolate','unisolate','repair','clean','restock'],
  reviewer:[]
 };
-const commandNames = new Set(['role','start','hold','resume','drain','estop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
+const commandNames = new Set(['role','start','stop','hold','resume','drain','estop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
 
 function event(s, kind, message, details = {}) {
   const item = {id:`EV-${++s.counters.event}`,at:s.time,kind,message,details};
@@ -57,6 +58,7 @@ function setMode(s,next,reason) {
   if (s.mode === next) return;
   const previous = s.mode;
   s.mode = next;
+  if(!['RUNNING','DRAINING'].includes(next)){for(const st of s.stages){st.flowKgS=0;st.status=st.isolated?'ISOLATED':next;}s.recent.outputKgH=0;}
   event(s,'STATE',`${previous} -> ${next}: ${reason}`);
 }
 function quarantineWIP(s,reason) {
@@ -128,17 +130,18 @@ function validateCommand(s,type,p) {
   switch (type) {
     case 'start': {
       if (s.mode !== 'STOPPED') return 'Start requires STOPPED';
-      if (s.clean.state !== 'CLEAN') return 'Complete line sanitation before a new campaign';
+      if (s.clean.restartRequired || (!activeOrder(s) && s.clean.state !== 'CLEAN')) return 'Complete line sanitation before a new campaign';
       const bad = permissives(s).filter(x => !x.ok);
       return bad.length ? bad.map(x => x.reason).join('; ') : null;
     }
+    case 'stop': return ['RUNNING','STARTING','HELD','DRAINING','CLEANING'].includes(s.mode) ? null : s.mode==='TRIPPED' ? 'Remove the trip cause and reset the trip before stopping' : 'The line is already stopped';
     case 'hold': return ['RUNNING','STARTING','DRAINING'].includes(s.mode) ? null : 'Hold requires a moving or starting line';
     case 'resume': {
       if (s.mode !== 'HELD') return 'Resume requires HELD, not a latched trip';
       const bad = permissives(s).filter(x => !x.ok && !['raw','order'].includes(x.id));
       return bad.length ? bad.map(x => x.reason).join('; ') : null;
     }
-    case 'drain': return ['RUNNING','HELD','STARTING'].includes(s.mode) ? null : 'Drain requires an active or held campaign';
+    case 'drain': return (['RUNNING','HELD','STARTING'].includes(s.mode) || (s.mode==='STOPPED' && activeOrder(s))) ? null : 'Drain requires an active campaign or retained work in process';
     case 'estop': return has(s,'estop') ? 'Emergency stop is already active' : null;
     case 'resetTrip': return s.mode !== 'TRIPPED' ? 'No latched trip to reset' : s.faults.some(id => faultFor(id)?.severity === 'TRIP') || s.loops.fry.pv > 200 ? 'Remove every trip cause and allow temperature to recover first' : null;
     case 'fault': return !faultFor(p.id) ? 'Unknown fault' : has(s,p.id) ? 'Fault already active' : null;
@@ -174,6 +177,8 @@ function validateCommand(s,type,p) {
   }
 }
 
+export function commandStatus(s,type,payload={}){const reason=validateCommand(s,type,payload);return {enabled:!reason,reason:reason||''};}
+
 export function act(s,type,payload = {}) {
   const reason = validateCommand(s,type,payload);
   if (reason) return no(reason);
@@ -182,10 +187,26 @@ export function act(s,type,payload = {}) {
   const st = stageFor(s,p.id), lot = s.finishedLots.find(x=>x.id===p.id), raw = s.rawLots.find(x=>x.id===p.id);
   switch(type) {
     case 'role': s.role=p.id; break;
-    case 'start': s.activeOrderId=queuedOrder(s).id;activeOrder(s).status='ACTIVE';setMode(s,'STARTING','Warm-up sequence requested');break;
-    case 'hold': setMode(s,'HELD','Operator hold');break;
-    case 'resume': setMode(s,activeOrder(s)?.rawFedKg < activeOrder(s)?.targetRawKg ? 'RUNNING':'DRAINING','Explicit operator resume');break;
-    case 'drain': setMode(s,'DRAINING','Raw feed disabled; retain and drain in-process material');break;
+    case 'start': {
+      if(!activeOrder(s)){s.activeOrderId=queuedOrder(s).id;activeOrder(s).status='ACTIVE';s.resumeTarget='RUNNING';}
+      s.startTarget=s.resumeTarget==='DRAINING'?'DRAINING':'RUNNING';
+      setMode(s,'STARTING','Start requested; thermal readiness checked before material motion');break;
+    }
+    case 'stop':
+      s.resumeTarget=s.mode==='DRAINING'?'DRAINING':s.mode==='STARTING'?s.startTarget||'RUNNING':s.mode==='HELD'?s.resumeTarget||'RUNNING':'RUNNING';
+      if(s.mode==='CLEANING'){s.clean.restartRequired=true;s.clean.state='DIRTY';s.clean.reason='Sanitation interrupted by Stop; restart sanitation from the beginning';s.clean.history.push({at:s.time,phase:CLEAN_PHASES[s.clean.phase].name,result:'INTERRUPTED'});}
+      setMode(s,'STOPPED','Operator stop; campaign and material retained');
+      for(const loop of Object.values(s.loops))loop.output=0;
+      s.utilities.thermalKW=0;s.utilities.powerKW=has(s,'power-loss')?0:120;break;
+    case 'hold':
+      s.resumeTarget=s.mode==='DRAINING'?'DRAINING':s.mode==='STARTING'?s.startTarget||'RUNNING':'RUNNING';
+      setMode(s,'HELD','Operator hold; restart intent retained');break;
+    case 'resume':
+      s.startTarget=s.resumeTarget==='DRAINING'||activeOrder(s)?.rawFedKg>=activeOrder(s)?.targetRawKg?'DRAINING':'RUNNING';
+      setMode(s,thermalReady(s)?s.startTarget:'STARTING','Explicit operator resume; thermal readiness checked');break;
+    case 'drain':
+      s.startTarget='DRAINING';s.resumeTarget='DRAINING';
+      setMode(s,thermalReady(s)?'DRAINING':'STARTING','Raw feed disabled; warm if necessary and drain retained material');break;
     case 'estop': s.faults.push('estop');setMode(s,'TRIPPED','Emergency stop latched');quarantineWIP(s,'Protective shutdown review hold');break;
     case 'resetTrip': setMode(s,'HELD','Trip reset; restart remains manual');break;
     case 'fault':
@@ -383,14 +404,14 @@ function sanitationStep(s) {
   s.clean.elapsed++;
   if(s.clean.elapsed>=phase.durationS){
     s.clean.history.push({at:s.time,phase:phase.name,result:'SIMULATED PASS'});s.clean.elapsed=0;s.clean.phase++;
-    if(s.clean.phase===CLEAN_PHASES.length){s.clean.state='CLEAN';s.clean.lastCompleted=s.time;s.clean.reason='All simulated sanitation stages completed';setMode(s,'STOPPED','Sanitation completed');}
+    if(s.clean.phase===CLEAN_PHASES.length){s.clean.state='CLEAN';s.clean.restartRequired=false;s.clean.lastCompleted=s.time;s.clean.reason='All simulated sanitation stages completed';setMode(s,'STOPPED','Sanitation completed');}
   }
 }
 function tick(s) {
   s.time++;
   utilityStep(s);
   if(s.loops.fry.pv>200&&s.mode!=='TRIPPED'){setMode(s,'TRIPPED','Fryer high-high temperature');quarantineWIP(s,'Protective shutdown review hold');}
-  if(s.mode==='STARTING'&&Math.abs(s.loops.blanch.pv-s.loops.blanch.sp)<4&&Math.abs(s.loops.fry.pv-s.loops.fry.sp)<4&&Math.abs(s.loops.freeze.pv-s.loops.freeze.sp)<4)setMode(s,'RUNNING','Thermal systems ready');
+  if(s.mode==='STARTING'&&thermalReady(s))setMode(s,s.startTarget||'RUNNING','Thermal systems ready');
   processStages(s);feed(s);sanitationStep(s);
   if(s.mode==='DRAINING'&&wip(s)<1e-6){
     const order=activeOrder(s);if(order)order.status=order.rawFedKg>=order.targetRawKg-1e-6?'COMPLETE':'STOPPED_EARLY';

@@ -75,7 +75,7 @@ jobs:
             if curl --fail --silent --show-error --location \
               --header 'Cache-Control: no-cache' \
               "${site}/?build=${GITHUB_SHA}" > /tmp/oia-live-index.html \
-              && grep -q 'potato-only-4' /tmp/oia-live-index.html \
+              && grep -q 'potato-controls-5' /tmp/oia-live-index.html \
               && curl --fail --silent --show-error --location \
                 --header 'Cache-Control: no-cache' \
                 "${site}/release.json?build=${GITHUB_SHA}" | grep -q "${GITHUB_SHA}"; then

@@ -4,7 +4,7 @@ Independent, synthetic engineering study for Farm Frites Dooen technical review.
 
 ## Run
 
-Use Node.js 24 for build and tests. `npm run build` publishes only the potato simulator at the root. All retired suite, product, demo and studio URLs, plus `/potato/`, redirect to that root. Serve `dist` with any static HTTP server. The simulator has no runtime dependencies and makes no external API calls. Open `/`. The initial view is the paused 40-minute production scenario, with all 15 equipment illustrations tied to model inventory and flow. Cold start remains available in Scenario studio.
+Use Node.js 24 for build and tests. `npm run build` publishes only the potato simulator at the root. All retired suite, product, demo and studio URLs, plus `/potato/`, redirect to that root. Serve `dist` with any static HTTP server. The simulator has no runtime dependencies and makes no external API calls. Open `/`. The initial view is a stopped 40-minute production example with a functional Start/Stop pair, with all 15 equipment illustrations tied to model inventory and flow. Cold start remains available in Scenario studio.
 
 `npm run test:simulation` runs the deterministic Node domain tests. `npm run test:simulation-ui` runs the Playwright regression suite against the built app; it requires the repository's existing development dependencies and a Chromium installation. Set `OIA_BASE_URL` to test a deployment instead of the local build.
 
