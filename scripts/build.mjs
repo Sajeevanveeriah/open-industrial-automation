@@ -1,9 +1,13 @@
 import {cp,mkdir,rm,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createHash} from 'node:crypto';
 const target=resolve('dist');
 await rm(target,{recursive:true,force:true});
 await mkdir(target,{recursive:true});
 await cp(resolve('simulator'),target,{recursive:true});
+let html=await readFile(resolve(target,'index.html'),'utf8');
+for(const file of ['styles.css','app.mjs']){const hash=createHash('sha256').update(await readFile(resolve(target,file))).digest('hex').slice(0,12);html=html.replace(file+'?v=potato-only-3',file+'?v=potato-only-3-'+hash);}
+await writeFile(resolve(target,'index.html'),html);
 const products=['operations','control','hmi','alarms','historian','performance','integration','mes','materials','assets','quality','security','identity','deployment','migration'];
 const aliases=['potato','suite','demo','studio','products',...products.map(x=>'products/'+x),'suite/demo','suite/studio','suite/products',...products.map(x=>'suite/products/'+x)];
 for (const alias of aliases) {
