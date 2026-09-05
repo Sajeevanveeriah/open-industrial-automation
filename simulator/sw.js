@@ -20,11 +20,11 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
     const current = await new Promise(resolve => {
       const channel = new MessageChannel();
       const timer = setTimeout(() => {channel.port1.close();resolve(false);}, 800);
-      channel.port1.onmessage = event => {clearTimeout(timer);channel.port1.close();resolve(event.data === 'potato-controls-5');};
+      channel.port1.onmessage = event => {clearTimeout(timer);channel.port1.close();resolve(event.data === 'potato-recovery-6');};
       client.postMessage({type:'POTATO_VERSION_REQUEST'}, [channel.port2]);
     });
     // Navigation fetches wait for activation; never await them inside activate.
-    if (!current) void client.navigate(root.href + '?release=potato-controls-5#plant').catch(()=>{});
+    if (!current) void client.navigate(root.href + '?release=potato-recovery-6#plant').catch(()=>{});
   }
 })()));
 self.addEventListener('fetch', event => {
