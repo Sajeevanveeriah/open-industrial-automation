@@ -7,9 +7,9 @@ test('published root and alias open the potato twin with resolvable local assets
   const html=await readFile(`${folder}/index.html`,'utf8');
   assert.match(html,/<title>Potato Plant Digital Twin/);
   assert.doesNotMatch(html,/src="\.\/app.js"/);
-  for(const match of html.matchAll(/(?:src|href)="(\.\/[^"#]+)"/g)) await access(resolve(folder,match[1]));
+  for(const match of html.matchAll(/(?:src|href)="(\.\/[^"#]+)"/g)) await access(resolve(folder,match[1].split('?')[0]));
   const app=await readFile(`${folder}/app.mjs`,'utf8');
-  for(const match of app.matchAll(/from '(\.\/[^']+)'/g)) await access(resolve(folder,match[1]));
+  for(const match of app.matchAll(/from '(\.\/[^']+)'/g)) await access(resolve(folder,match[1].split('?')[0]));
  }
  assert.match(await readFile('dist/suite/index.html','utf8'),/Open Industrial Automation/);
  await access('dist/suite/products/index.html');
