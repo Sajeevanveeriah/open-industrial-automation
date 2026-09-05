@@ -11,10 +11,11 @@
     "test:web": "node scripts/qa-oia.mjs",
     "test:products": "node scripts/qa-oia-products.mjs",
     "desktop:verify": "node desktop/verify.cjs",
-    "test": "npm run verify:source && npm run build && npm run test:web && npm run test:products && npm run desktop:verify && npm run test:simulation",
+    "test": "npm run verify:source && npm run build && npm run test:delivery && npm run test:web && npm run test:products && npm run test:simulation",
     "test:simulation": "node --test tests/potato-engine.test.mjs",
     "test:simulation-ui": "node scripts/potato-ui.mjs",
-    "dev": "vite"
+    "dev": "vite",
+    "test:delivery": "node --test tests/potato-delivery.test.mjs"
   },
   "devDependencies": {
     "axe-core": "4.12.1",

@@ -28,6 +28,7 @@ jobs:
       - run: npm run test:simulation
       - run: npm run verify:source
       - run: npm run build
+      - run: npm run test:delivery
       - run: npx playwright install --with-deps chromium
       - run: npm run test:simulation-ui
       - run: npm run test:web
@@ -78,10 +79,10 @@ jobs:
               && grep -q 'Open Industrial Automation' /tmp/oia-live-index.html \
               && curl --fail --silent --show-error --location \
                 --header 'Cache-Control: no-cache' \
-                "${site}/model.json?build=${GITHUB_SHA}" > /tmp/oia-live-model.json \
+                "${site}/suite/model.json?build=${GITHUB_SHA}" > /tmp/oia-live-model.json \
               && curl --fail --silent --show-error --location \
                 --header 'Cache-Control: no-cache' \
-                "${site}/products/?build=${GITHUB_SHA}" > /tmp/oia-live-products.html; then
+                "${site}/suite/products/?build=${GITHUB_SHA}" > /tmp/oia-live-products.html; then
               echo "Public deployment became available on attempt ${attempt}."
               exit 0
             fi

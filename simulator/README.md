@@ -4,7 +4,7 @@ Independent, synthetic engineering study for Farm Frites Dooen technical review.
 
 ## Run
 
-Use Node.js 24 for build and tests. `npm run build` preserves the existing OIA web suite and adds the simulator at `dist/potato/`. Serve `dist` with any static HTTP server. The simulator has no runtime dependencies and makes no external API calls. Open `/potato/`.
+Use Node.js 24 for build and tests. `npm run build` preserves the existing OIA web suite and makes the potato simulator the root entrypoint, retains `/potato/` as an alias and moves the legacy suite to `/suite/`. Serve `dist` with any static HTTP server. The simulator has no runtime dependencies and makes no external API calls. Open `/`. The initial view is the paused 40-minute production scenario, with all 15 equipment illustrations tied to model inventory and flow. Cold start remains available in Scenario studio.
 
 `npm run test:simulation` runs the deterministic Node domain tests. `npm run test:simulation-ui` runs the Playwright regression suite against the built app; it requires the repository's existing development dependencies and a Chromium installation. Set `OIA_BASE_URL` to test a deployment instead of the local build.
 
@@ -49,3 +49,5 @@ The in-app Engineering reference includes the public source register and all mod
 ## Release and preservation
 
 The original OIA suite and desktop sources are retained. This change builds a browser simulation, not new desktop installers. Existing installer releases have not been revalidated. GitHub Pages deployment remains behind repository verification. Rollback is a reviewed revert and redeployment, with no force-push or unrelated file deletion.
+
+Installer workflows and the installer-dependent release workflow are removed at Saj's request. Desktop source is retained but no installers are built by CI.
