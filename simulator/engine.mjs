@@ -130,7 +130,7 @@ function validateCommand(s,type,p) {
   switch (type) {
     case 'start': {
       if (s.mode !== 'STOPPED') return 'Start requires STOPPED';
-      if (!activeOrder(s) && s.clean.state !== 'CLEAN') return 'Complete line sanitation before a new campaign';
+      if (s.clean.restartRequired || (!activeOrder(s) && s.clean.state !== 'CLEAN')) return 'Complete line sanitation before a new campaign';
       const bad = permissives(s).filter(x => !x.ok);
       return bad.length ? bad.map(x => x.reason).join('; ') : null;
     }
@@ -194,7 +194,7 @@ export function act(s,type,payload = {}) {
     }
     case 'stop':
       s.resumeTarget=s.mode==='DRAINING'?'DRAINING':s.mode==='STARTING'?s.startTarget||'RUNNING':s.mode==='HELD'?s.resumeTarget||'RUNNING':'RUNNING';
-      if(s.mode==='CLEANING'){s.clean.state='DIRTY';s.clean.reason='Sanitation interrupted by Stop; restart sanitation from the beginning';s.clean.history.push({at:s.time,phase:CLEAN_PHASES[s.clean.phase].name,result:'INTERRUPTED'});}
+      if(s.mode==='CLEANING'){s.clean.restartRequired=true;s.clean.state='DIRTY';s.clean.reason='Sanitation interrupted by Stop; restart sanitation from the beginning';s.clean.history.push({at:s.time,phase:CLEAN_PHASES[s.clean.phase].name,result:'INTERRUPTED'});}
       setMode(s,'STOPPED','Operator stop; campaign and material retained');
       for(const loop of Object.values(s.loops))loop.output=0;
       s.utilities.thermalKW=0;s.utilities.powerKW=has(s,'power-loss')?0:120;break;
@@ -404,7 +404,7 @@ function sanitationStep(s) {
   s.clean.elapsed++;
   if(s.clean.elapsed>=phase.durationS){
     s.clean.history.push({at:s.time,phase:phase.name,result:'SIMULATED PASS'});s.clean.elapsed=0;s.clean.phase++;
-    if(s.clean.phase===CLEAN_PHASES.length){s.clean.state='CLEAN';s.clean.lastCompleted=s.time;s.clean.reason='All simulated sanitation stages completed';setMode(s,'STOPPED','Sanitation completed');}
+    if(s.clean.phase===CLEAN_PHASES.length){s.clean.state='CLEAN';s.clean.restartRequired=false;s.clean.lastCompleted=s.time;s.clean.reason='All simulated sanitation stages completed';setMode(s,'STOPPED','Sanitation completed');}
   }
 }
 function tick(s) {

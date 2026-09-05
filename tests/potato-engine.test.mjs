@@ -160,3 +160,7 @@ test('Stop cannot clear a trip; sanitation can be interrupted and restarted',()=
  const tripped=operating();ok(tripped,'estop');no(tripped,'stop');assert.equal(tripped.mode,'TRIPPED');
  const s=createPlant();ok(s,'clean');advance(s,30);ok(s,'stop');assert.equal(s.clean.state,'DIRTY');no(s,'start');ok(s,'clean');assert.equal(s.clean.elapsed,0);advance(s,1200);assert.equal(s.clean.state,'CLEAN');assertPlant(s);
 });
+
+test('a retained empty campaign cannot bypass interrupted sanitation',()=>{
+ const s=createPlant();ok(s,'start');ok(s,'stop');ok(s,'clean');ok(s,'stop');no(s,'start');ok(s,'clean');advance(s,1200);ok(s,'start');assertPlant(s);
+});
