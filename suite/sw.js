@@ -1,66 +1,35 @@
-const CACHE = 'oia-suite-v2.2';
-const CORE = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./dub.css",
-  "./runtime-bootstrap.js",
-  "./data.js",
-  "./app.js",
-  "./quality.js",
-  "./product-shell.js",
-  "./icon.svg",
-  "./manifest.webmanifest",
-  "./model.json",
-  "./README.md",
-  "./LICENSE",
-  "./products/",
-  "./products/operations/",
-  "./products/control/",
-  "./products/hmi/",
-  "./products/alarms/",
-  "./products/historian/",
-  "./products/performance/",
-  "./products/integration/",
-  "./products/mes/",
-  "./products/materials/",
-  "./products/assets/",
-  "./products/quality/",
-  "./products/security/",
-  "./products/identity/",
-  "./products/deployment/",
-  "./products/migration/",
-  "./docs/Architecture.md",
-  "./docs/Capability-Matrix.md",
-  "./docs/Deployment-Guide.md",
-  "./docs/Safety-And-Regulatory-Boundary.md",
-  "./docs/Product-And-Desktop-Architecture.md",
-];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)));
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))),
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request).then((response) => {
-        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
-          const copy = response.clone();
-          void caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      });
-      return cached || network.catch(() => caches.match('./index.html'));
-    }),
-  );
+// Migration worker: retire only this project's old cache-first application.
+// Do not cache HTML or model assets, and do not touch neighbouring GitHub sites.
+const root = new URL('./', self.location.href);
+root.pathname = root.pathname.replace(/(?:suite|potato)\/$/, '');
+const owned = url => { const u = new URL(url); return u.origin === root.origin && u.pathname.startsWith(root.pathname); };
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', event => event.waitUntil((async () => {
+  let stale = false;
+  for (const name of await caches.keys()) {
+    if (!name.startsWith('oia-')) continue;
+    const cache = await caches.open(name);
+    for (const request of await cache.keys()) {
+      if (owned(request.url)) { stale = true; await cache.delete(request); }
+    }
+  }
+  await self.clients.claim();
+  // Claiming alone leaves the retired UI painted until a manual reload.
+  if (stale || self.registration.scope !== root.href) {
+    for (const client of await self.clients.matchAll({type:'window'})) {
+      // Do not await navigation inside activate: its fetch waits for activation.
+      if (owned(client.url)) void client.navigate(root.href + '?release=potato-only-3#plant').catch(()=>{});
+    }
+  }
+})()));
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || !owned(event.request.url)) return;
+  if (event.request.mode === 'navigate') {
+    const url = new URL(event.request.url);
+    if (url.pathname !== root.pathname && url.pathname !== root.pathname + 'index.html') {
+      event.respondWith(Promise.resolve(Response.redirect(root.href + '#plant', 302)));
+      return;
+    }
+  }
+  event.respondWith(fetch(event.request, {cache:'no-store'}));
 });
