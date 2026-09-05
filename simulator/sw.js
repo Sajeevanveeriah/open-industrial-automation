@@ -17,7 +17,8 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
   // Claiming alone leaves the retired UI painted until a manual reload.
   if (stale || self.registration.scope !== root.href) {
     for (const client of await self.clients.matchAll({type:'window'})) {
-      if (owned(client.url)) await client.navigate(root.href + '?release=potato-only-3#plant');
+      // Do not await navigation inside activate: its fetch waits for activation.
+      if (owned(client.url)) void client.navigate(root.href + '?release=potato-only-3#plant').catch(()=>{});
     }
   }
 })()));
