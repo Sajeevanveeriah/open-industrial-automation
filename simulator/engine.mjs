@@ -58,6 +58,7 @@ function setMode(s,next,reason) {
   if (s.mode === next) return;
   const previous = s.mode;
   s.mode = next;
+  if(['STOPPED','TRIPPED'].includes(next)){for(const loop of Object.values(s.loops))loop.output=0;s.utilities.thermalKW=0;s.utilities.powerKW=has(s,'power-loss')?0:120;}
   if(!['RUNNING','DRAINING'].includes(next)){for(const st of s.stages){st.flowKgS=0;st.status=st.isolated?'ISOLATED':next;}s.recent.outputKgH=0;}
   event(s,'STATE',`${previous} -> ${next}: ${reason}`);
 }
