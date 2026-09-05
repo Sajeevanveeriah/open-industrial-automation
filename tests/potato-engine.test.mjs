@@ -135,3 +135,10 @@ test('bounded fault sequences retain invariants under adversarial operation',()=
  for(let i=0;i<90;i++){const f=FAULTS[Math.floor(random()*FAULTS.length)].id;act(s,'fault',{id:f});advance(s,1+Math.floor(random()*120));assertPlant(s);act(s,'clearFault',{id:f});if(s.mode==='TRIPPED')act(s,'resetTrip');if(s.mode==='HELD')act(s,'resume');advance(s,30);assertPlant(s);}
 });
 
+
+test('late quality hold identifies earlier shipments from the same finished lot',()=>{
+ const s=operating(),l=firstLot(s);assert.deepEqual(l.holdReasons,[]);ok(s,'sample',{id:l.id});ok(s,'challenge');ok(s,'release',{id:l.id});ok(s,'dispatch',{id:l.id,kg:100});ok(s,'fault',{id:'metal-detect'});advance(s,120);assert.ok(l.holdReasons.length);assert.ok(s.shipments.every(x=>x.recallRequired));assert.equal(l.releasedKg,0);assertPlant(s);
+});
+test('invalid control identifiers do not mutate loops',()=>{
+ const s=createPlant(),before=JSON.stringify(s.loops);no(s,'tune',{id:'unknown-loop',kp:2,ki:0.1});no(s,'setpoint',{id:'unknown-loop',value:80});assert.equal(JSON.stringify(s.loops),before);
+});

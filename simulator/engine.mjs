@@ -144,8 +144,8 @@ function validateCommand(s,type,p) {
     case 'fault': return !faultFor(p.id) ? 'Unknown fault' : has(s,p.id) ? 'Fault already active' : null;
     case 'clearFault': return has(s,p.id) ? null : 'Fault is not active';
     case 'feed': return finite(p.value,1000,40000) ? null : 'Raw feed must be 1,000-40,000 kg/h';
-    case 'setpoint': {const bounds={blanch:[60,95],fry:[155,195],freeze:[-45,-18]};return bounds[p.id] && finite(p.value,...bounds[p.id]) ? null : 'Setpoint is outside its finite model range';}
-    case 'tune': return s.loops[p.id] && finite(p.kp,0,20) && finite(p.ki,0,1) ? null : 'PI gains require Kp 0-20 and Ki 0-1';
+    case 'setpoint': {const bounds={blanch:[60,95],fry:[155,195],freeze:[-45,-18]};return Object.hasOwn(bounds,p.id) && finite(p.value,...bounds[p.id]) ? null : 'Setpoint is outside its finite model range';}
+    case 'tune': return Object.hasOwn(s.loops,p.id) && finite(p.kp,0,20) && finite(p.ki,0,1) ? null : 'PI gains require Kp 0-20 and Ki 0-1';
     case 'speed': return st && finite(p.value,0.5,1.2) ? null : 'Select equipment and a speed multiplier of 0.5-1.2';
     case 'selectRecipe': return !recipeFor(p.id) ? 'Unknown recipe' : s.mode !== 'STOPPED' || wip(s)>1e-6 ? 'Recipe changes require stopped, empty equipment' : null;
     case 'receive': return finite(p.kg,1000,50000) && finite(p.dryMatter,10,35) && finite(p.sugar,0,2) && typeof p.source === 'string' && p.source.trim().length > 0 && p.source.length <= 100 ? null : 'Receipt requires 1,000-50,000 kg, 10-35% dry matter, 0-2% sugar and a source label';
@@ -262,7 +262,12 @@ function finishedPacket(s,p) {
     s.finishedLots.push(lot);transmit(s,'LOT_CREATED',{id:lot.id,rawLotId:p.rawLotId,orderId:p.orderId});
   }
   lot.totalKg+=kg;lot.pendingKg+=kg;addComponents(lot.components,p);lot.lastAt=s.time;lot.maxCoreC=Math.max(lot.maxCoreC,p.tempC);
+  const previouslyHeld=lot.holdReasons.length>0;
   for(const reason of p.holdReasons)if(!lot.holdReasons.includes(reason))lot.holdReasons.push(reason);
+  if(!previouslyHeld&&lot.holdReasons.length){
+    for(const shipment of s.shipments.filter(x=>x.lotId===lot.id))shipment.recallRequired=true;
+    event(s,'QUALITY','Finished-lot hold applies to all related stock and shipments',{lotId:lot.id});
+  }
   if(lot.holdReasons.length&&lot.releasedKg>0){lot.pendingKg+=lot.releasedKg;lot.releasedKg=0;}
   s.orders.find(x=>x.id===p.orderId).producedKg+=kg;
 }
@@ -506,3 +511,4 @@ export function csv(s,kind) {
   const quote=value=>{let text=String(value??'');if(typeof value==='string'&&/^[=+@\-\t\r]/.test(text))text=`'${text}`;return `"${text.replaceAll('"','""')}"`;};
   return `${columns.join(',')}\n${rows.map(row=>row.map(quote).join(',')).join('\n')}\n`;
 }
+
