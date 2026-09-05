@@ -164,3 +164,8 @@ test('Stop cannot clear a trip; sanitation can be interrupted and restarted',()=
 test('a retained empty campaign cannot bypass interrupted sanitation',()=>{
  const s=createPlant();ok(s,'start');ok(s,'stop');ok(s,'clean');ok(s,'stop');no(s,'start');ok(s,'clean');advance(s,1200);ok(s,'start');assertPlant(s);
 });
+
+test('operator can release E-stop, reset, and resume without clearing other trip causes',()=>{
+ for(const role of ['instructor','operator','engineer']){const s=operating();ok(s,'role',{id:role});ok(s,'estop');assert.ok(Object.values(s.loops).every(l=>l.output===0));assert.equal(s.utilities.thermalKW,0);no(s,'resetTrip');ok(s,'releaseEstop');assert.equal(s.mode,'TRIPPED');assert.equal(s.faults.includes('estop'),false);ok(s,'resetTrip');assert.equal(s.mode,'HELD');ok(s,'resume');advance(s,60);assert.equal(s.mode,'RUNNING');assertPlant(s);assert.deepEqual(importRun(exportRun(s)),s);}
+ const s=operating();ok(s,'fault',{id:'power-loss'});ok(s,'estop');ok(s,'releaseEstop');assert.ok(s.faults.includes('power-loss'));no(s,'resetTrip');assert.equal(s.mode,'TRIPPED');
+});
