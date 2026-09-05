@@ -34,8 +34,9 @@ This is a bespoke implementation, not a universal-novelty claim. Engineering geo
 
 ## Preservation and rollback
 
-The source baseline is commit b1f5781f3ee05e12d5d59bf44a6b70e8dd3e7fce. The task branch is saj/potato-plant-simulation-20260905. Preserve unrelated repositories, the portfolio, existing releases and historical desktop source. Installer automation is retired from automatic triggers, not used for this task. Rollback is a reviewed revert of the simulation merge and re-deployment of the prior web build; no force-push or history rewrite.
+The source baseline is commit b1f5781f3ee05e12d5d59bf44a6b70e8dd3e7fce. The task branch is saj/potato-plant-simulation-20260905. Preserve unrelated repositories, the portfolio, existing releases and Git history. Following the explicit potato-only correction, retire the water web suite and desktop source from the current tree. Replace former entry points with redirects; remove this project's old cached assets and automatically navigate cached clients to the potato plant. Rollback is a reviewed revert of the simulation merge and re-deployment of the prior web build; no force-push or history rewrite.
 
 ## Verification limits
 
 Functional tests establish the implemented model's declared behaviour, not validated food-safety limits, calibrated physics, equipment selection, site safety certification or complete equivalence to Dooen. Documentation must identify lumped thermal models, illustrative recipe windows, emulated roles/connectivity and the retained finite history. Reviewers can export assumptions, state, genealogy and reproducible run data for further analysis.
+

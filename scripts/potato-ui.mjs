@@ -14,6 +14,8 @@ try{
  async function openRoute(name){await page.getByRole('link',{name,exact:true}).click();await page.getByRole('heading',{name,exact:true}).waitFor({state:'visible'});}
  await page.goto(base+'/');await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();
  assert.equal(await page.locator('.equipment-art').count(),15);
+ const rows=await page.locator('.ribbon').evaluateAll(es=>es.map(e=>[...e.querySelectorAll('.unit')].map(u=>({name:u.querySelector('strong').getBoundingClientRect().top,flow:u.querySelector('.flow').getBoundingClientRect().top}))));
+ for(const row of rows){assert.ok(Math.max(...row.map(x=>x.name))-Math.min(...row.map(x=>x.name))<1,'Equipment labels align');assert.ok(Math.max(...row.map(x=>x.flow))-Math.min(...row.map(x=>x.flow))<1,'Equipment flow baselines align');} 
  assert.equal(await page.getByRole('link',{name:'Open original OIA suite'}).count(),0);
  const routes=['Process overview','Control & I/O','Production & intake','Quality & genealogy','Utilities & environment','Maintenance & sanitation','Alarms & historian','Integration lab','Scenario studio','Engineering reference'];
  for(const name of routes){await openRoute(name);await page.getByRole('heading',{name,exact:true}).waitFor();assert.equal(await page.locator('body').evaluate(e=>e.scrollWidth>innerWidth),false,name+' overflow');}
