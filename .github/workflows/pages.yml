@@ -30,9 +30,8 @@ jobs:
       - run: npm run build
       - run: npm run test:delivery
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:migration
       - run: npm run test:simulation-ui
-      - run: npm run test:web
-      - run: npm run test:products
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -76,13 +75,10 @@ jobs:
             if curl --fail --silent --show-error --location \
               --header 'Cache-Control: no-cache' \
               "${site}/?build=${GITHUB_SHA}" > /tmp/oia-live-index.html \
-              && grep -q 'Open Industrial Automation' /tmp/oia-live-index.html \
+              && grep -q 'potato-only-3' /tmp/oia-live-index.html \
               && curl --fail --silent --show-error --location \
                 --header 'Cache-Control: no-cache' \
-                "${site}/suite/model.json?build=${GITHUB_SHA}" > /tmp/oia-live-model.json \
-              && curl --fail --silent --show-error --location \
-                --header 'Cache-Control: no-cache' \
-                "${site}/suite/products/?build=${GITHUB_SHA}" > /tmp/oia-live-products.html; then
+                "${site}/release.json?build=${GITHUB_SHA}" | grep -q "${GITHUB_SHA}"; then
               echo "Public deployment became available on attempt ${attempt}."
               exit 0
             fi
@@ -98,8 +94,6 @@ jobs:
           set -euo pipefail
           export OIA_BASE_URL="${OIA_BASE_URL%/}"
           npm run test:simulation-ui
-          npm run test:web
-          npm run test:products
       - name: Upload live deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
