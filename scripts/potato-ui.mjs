@@ -11,7 +11,9 @@ if(!process.env.OIA_BASE_URL){server=createServer(async(req,res)=>{try{const pat
 let browser;
 try{
  browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
- await page.goto(base+'/potato/');await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();
+ await page.goto(base+'/');await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();
+ assert.equal(await page.locator('.equipment-art').count(),15);
+ assert.equal(await page.locator('.rail-bottom a').getAttribute('href'),new URL(base+'/suite/').pathname);
  const routes=['Process overview','Control & I/O','Production & intake','Quality & genealogy','Utilities & environment','Maintenance & sanitation','Alarms & historian','Integration lab','Scenario studio','Engineering reference'];
  for(const name of routes){await page.getByRole('link',{name,exact:true}).click();await page.getByRole('heading',{name,exact:true}).waitFor();assert.equal(await page.locator('body').evaluate(e=>e.scrollWidth>innerWidth),false,name+' overflow');}
  async function preset(name){await page.getByRole('link',{name:'Scenario studio',exact:true}).click();await page.getByRole('button',{name:new RegExp('^'+name+' ')}).click();await page.getByRole('button',{name:'Replace run',exact:true}).click();await page.getByRole('dialog').waitFor({state:'hidden'});}

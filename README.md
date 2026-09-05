@@ -1,8 +1,10 @@
-# Open Industrial Automation
+# Potato Plant Digital Twin - Open Industrial Automation
+
+The main website now opens the potato-processing digital-twin demonstrator: 15 connected operations from whole-potato receiving to frozen-product packing and palletising. A paused 40-minute production scenario makes the material train inspectable immediately. This is an illustrative model, not a calibrated replica of the actual Dooen plant.
 
 Open Industrial Automation is an Apache-2.0, vendor-neutral software family for industrial automation engineering, HMI and SCADA, control intent, tags and I/O, alarms, historian, OEE, batch and MES, materials, maintenance, validation, OT cybersecurity, identity, deployment and legacy migration.
 
-The complete suite and 15 focused products share one portable automation project model and one workspace. Browser and desktop editions are built from the same source.
+The complete suite and 15 focused products share one portable automation project model and one workspace. The legacy suite remains at `/suite/`. Installer and installer-release workflows have been removed; desktop source remains dormant.
 
 ## Verify
 

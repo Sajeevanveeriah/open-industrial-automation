@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url)
 const exportRoot = resolve('dist')
 const localPort = 4174
 const localOrigin = `http://127.0.0.1:${localPort}`
-const localPrefix = ''
+const localPrefix = '/suite'
 const mime = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -21,7 +21,7 @@ const mime = {
 
 export function createQA() {
   const remoteBase = process.env.OIA_BASE_URL?.replace(/\/+$/, '')
-  const siteBase = remoteBase ?? `${localOrigin}${localPrefix}`
+  const siteBase = remoteBase ? `${remoteBase}/suite` : `${localOrigin}${localPrefix}`
   const captureRoot = '/tmp/oia-qa'
   const mode = remoteBase ? 'live' : 'local'
   const axePath = require.resolve('axe-core/axe.min.js')
@@ -221,3 +221,4 @@ export function createQA() {
     url,
   }
 }
+
