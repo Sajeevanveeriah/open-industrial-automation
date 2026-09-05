@@ -5,7 +5,7 @@ import {resolve,extname} from 'node:path';
 import {chromium} from 'playwright';
 // Serve an actual cache-first legacy session, then replace its server release.
 // No reload/clear-data operation is permitted after the worker update.
-let deployed=false;
+let deployed=false,cacheLegacy=true;
 const origin='http://127.0.0.1:4186';
 const prefix='/open-industrial-automation/';
 const server=createServer(async(req,res)=>{
@@ -15,7 +15,7 @@ const server=createServer(async(req,res)=>{
   if(!path.startsWith(prefix)){res.end('Neighbouring project');return;}
   res.setHeader('Content-Type',path.endsWith('.js')||path.endsWith('.mjs')?'text/javascript':path.endsWith('.css')?'text/css':'text/html');
   if(!deployed){
-   if(path.endsWith('sw.js')){res.end(`const entry=new URL('./',self.location).href;self.addEventListener('install',e=>e.waitUntil(caches.open('oia-suite-v2.2').then(c=>c.add(entry)).then(()=>self.skipWaiting())));self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request))));`);return;}
+   if(path.endsWith('sw.js')){res.end(`const entry=new URL('./',self.location).href;self.addEventListener('install',e=>e.waitUntil(${cacheLegacy?"caches.open('oia-suite-v2.2').then(c=>c.add(entry))":"Promise.resolve()"}.then(()=>self.skipWaiting())));self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request))));`);return;}
    res.end('<!doctype html><title>Old water application</title><h1>TK-101 MIX TANK</h1>');return;
   }
   const relative=path.slice(prefix.length)+(path.endsWith('/')?'index.html':'');
@@ -26,7 +26,8 @@ await new Promise(r=>server.listen(4186,'127.0.0.1',r));
 let browser;
 try{
  browser=await chromium.launch();
- for(const scope of ['', 'suite/']){
+ for(const [scope,cached] of [['',true], ['suite/',true], ['',false]]){
+  cacheLegacy=cached;
   deployed=false;const context=await browser.newContext();const page=await context.newPage();
   await page.goto(origin+prefix+scope);
   await page.evaluate(async()=>{await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;});
@@ -42,5 +43,5 @@ try{
   assert.deepEqual(retained,{neighbour:'preserve',own:0,saved:'preserve'});
   await context.close();
  }
- console.log('PASS: root and nested cached water applications automatically become potato without manual reload; neighbouring cache and saved data preserved.');
+ console.log('PASS: root, nested cached and cacheless older applications automatically become potato without manual reload; neighbouring cache and saved data preserved.');
 }finally{await browser?.close();await new Promise(r=>server.close(r));}

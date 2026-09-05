@@ -5,21 +5,26 @@ root.pathname = root.pathname.replace(/(?:suite|potato)\/$/, '');
 const owned = url => { const u = new URL(url); return u.origin === root.origin && u.pathname.startsWith(root.pathname); };
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
-  let stale = false;
   for (const name of await caches.keys()) {
     if (!name.startsWith('oia-')) continue;
     const cache = await caches.open(name);
     for (const request of await cache.keys()) {
-      if (owned(request.url)) { stale = true; await cache.delete(request); }
+      if (owned(request.url)) { await cache.delete(request); }
     }
   }
   await self.clients.claim();
-  // Claiming alone leaves the retired UI painted until a manual reload.
-  if (stale || self.registration.scope !== root.href) {
-    for (const client of await self.clients.matchAll({type:'window'})) {
-      // Do not await navigation inside activate: its fetch waits for activation.
-      if (owned(client.url)) void client.navigate(root.href + '?release=potato-only-3#plant').catch(()=>{});
-    }
+  // Ask the painted page, not the cache, which application is running.
+  // Cacheless intermediate releases also need automatic replacement.
+  for (const client of await self.clients.matchAll({type:'window'})) {
+    if (!owned(client.url)) continue;
+    const current = await new Promise(resolve => {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => {channel.port1.close();resolve(false);}, 800);
+      channel.port1.onmessage = event => {clearTimeout(timer);channel.port1.close();resolve(event.data === 'potato-only-4');};
+      client.postMessage({type:'POTATO_VERSION_REQUEST'}, [channel.port2]);
+    });
+    // Navigation fetches wait for activation; never await them inside activate.
+    if (!current) void client.navigate(root.href + '?release=potato-only-4#plant').catch(()=>{});
   }
 })()));
 self.addEventListener('fetch', event => {

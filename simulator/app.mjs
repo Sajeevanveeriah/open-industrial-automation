@@ -56,4 +56,5 @@ window.addEventListener('hashchange',routeChanged);
 setInterval(()=>{if(!playing||lens||$('#replace-dialog').open)return;try{const available=LIMITS.maxSeconds-plant.time;advance(plant,Math.min(rate,available));assertPlant(plant);if(available<=rate){playing=false;notify('24-hour run boundary reached. Export this run before resetting.');}if(!['INPUT','SELECT'].includes(document.activeElement?.tagName))render();}catch(e){playing=false;notify(`Model stopped: ${e.message}`);console.error(e);}},1000);
 routeChanged();
 
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',event=>{if(event.data?.type==='POTATO_VERSION_REQUEST')event.ports[0]?.postMessage('potato-only-4');});
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
