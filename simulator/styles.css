@@ -7,3 +7,8 @@
 @media(max-width:1150px){.plant-grid{grid-template-columns:1fr}.twin-intro{grid-template-columns:1fr}.plant-grid .inspector{position:static}.ribbon{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:650px){.ribbon{grid-template-columns:1fr}.unit{display:grid;grid-template-columns:110px 1fr;gap:5px 16px;text-align:left}.equipment-art{grid-row:1/6;grid-column:1}.unit strong{min-height:0}.unit:not(:last-child)::after{content:'↓';right:50%;top:auto;bottom:-17px}.twin-intro h2{font-size:24px}.ribbon{gap:18px}}
 @media(prefers-reduced-motion:reduce){.equipment-art.moving .potato{animation:none}}
+/* Allow grid and flex children to shrink within narrow viewports. */
+.shell>*,.grid>*,.twin-intro>*,.top>*,.rail{min-width:0}
+.rail nav{max-width:100%}
+fieldset{min-inline-size:0}
+@media(max-width:850px){.shell,.plant-grid,.twin-intro{grid-template-columns:minmax(0,1fr)}.card-head{flex-wrap:wrap}.area-label{gap:12px;flex-wrap:wrap}.top{flex-wrap:wrap}}
