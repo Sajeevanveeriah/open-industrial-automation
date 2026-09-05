@@ -16,13 +16,13 @@ const no = reason => ({ok:false,reason});
 const yes = reason => ({ok:true,reason});
 const roles = ['instructor','operator','engineer','quality','maintenance','reviewer'];
 const permissions = {
- operator:['start','stop','hold','resume','drain','estop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile'],
- engineer:['start','stop','hold','resume','drain','estop','resetTrip','ack','feed','setpoint','tune','speed','selectRecipe','reconcile'],
+ operator:['start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile'],
+ engineer:['start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','feed','setpoint','tune','speed','selectRecipe','reconcile'],
  quality:['ack','sample','challenge','release','reject','approveRaw','rejectRaw','recall','hold','estop'],
  maintenance:['ack','hold','estop','isolate','unisolate','repair','clean','restock'],
  reviewer:[]
 };
-const commandNames = new Set(['role','start','stop','hold','resume','drain','estop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
+const commandNames = new Set(['role','start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
 
 function event(s, kind, message, details = {}) {
   const item = {id:`EV-${++s.counters.event}`,at:s.time,kind,message,details};
@@ -58,6 +58,7 @@ function setMode(s,next,reason) {
   if (s.mode === next) return;
   const previous = s.mode;
   s.mode = next;
+  if(['STOPPED','TRIPPED'].includes(next)){for(const loop of Object.values(s.loops))loop.output=0;s.utilities.thermalKW=0;s.utilities.powerKW=has(s,'power-loss')?0:120;}
   if(!['RUNNING','DRAINING'].includes(next)){for(const st of s.stages){st.flowKgS=0;st.status=st.isolated?'ISOLATED':next;}s.recent.outputKgH=0;}
   event(s,'STATE',`${previous} -> ${next}: ${reason}`);
 }
@@ -125,7 +126,7 @@ function validateCommand(s,type,p) {
   if (!p || typeof p !== 'object' || Array.isArray(p)) return 'Command payload must be an object';
   if (type === 'role') return roles.includes(p.id) ? null : 'Unknown simulation role';
   if (s.role !== 'instructor' && !permissions[s.role]?.includes(type)) return `The ${s.role} simulation role cannot perform ${type}`;
-  if (has(s,'comms-loss') && !['fault','clearFault','role','estop','reconcile'].includes(type)) return 'Supervisory gateway is unavailable; use the instructor to restore it';
+  if (has(s,'comms-loss') && !['fault','clearFault','role','estop','releaseEstop','reconcile'].includes(type)) return 'Supervisory gateway is unavailable; use the instructor to restore it';
   const st = stageFor(s,p.id), lot = s.finishedLots.find(x => x.id === p.id), raw = s.rawLots.find(x => x.id === p.id);
   switch (type) {
     case 'start': {
@@ -143,6 +144,7 @@ function validateCommand(s,type,p) {
     }
     case 'drain': return (['RUNNING','HELD','STARTING'].includes(s.mode) || (s.mode==='STOPPED' && activeOrder(s))) ? null : 'Drain requires an active campaign or retained work in process';
     case 'estop': return has(s,'estop') ? 'Emergency stop is already active' : null;
+    case 'releaseEstop': return has(s,'estop') ? null : 'The simulated E-stop is already released';
     case 'resetTrip': return s.mode !== 'TRIPPED' ? 'No latched trip to reset' : s.faults.some(id => faultFor(id)?.severity === 'TRIP') || s.loops.fry.pv > 200 ? 'Remove every trip cause and allow temperature to recover first' : null;
     case 'fault': return !faultFor(p.id) ? 'Unknown fault' : has(s,p.id) ? 'Fault already active' : null;
     case 'clearFault': return has(s,p.id) ? null : 'Fault is not active';
@@ -208,6 +210,7 @@ export function act(s,type,payload = {}) {
       s.startTarget='DRAINING';s.resumeTarget='DRAINING';
       setMode(s,thermalReady(s)?'DRAINING':'STARTING','Raw feed disabled; warm if necessary and drain retained material');break;
     case 'estop': s.faults.push('estop');setMode(s,'TRIPPED','Emergency stop latched');quarantineWIP(s,'Protective shutdown review hold');break;
+    case 'releaseEstop': s.faults=s.faults.filter(id=>id!=='estop');break;
     case 'resetTrip': setMode(s,'HELD','Trip reset; restart remains manual');break;
     case 'fault':
       if(p.id==='comms-loss')s.gatewaySnapshot=liveTags(s);
