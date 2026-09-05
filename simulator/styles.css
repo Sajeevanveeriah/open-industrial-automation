@@ -32,3 +32,4 @@ label.field{font-size:12px;line-height:1.5}.form-grid{align-items:end}th{line-he
 @media(max-width:650px){.ribbon{grid-template-columns:minmax(0,1fr);gap:20px}.unit,.unit.selected{grid-template-columns:100px minmax(0,1fr);grid-template-rows:16px auto 18px 22px 5px 16px;padding:14px;gap:4px 16px}.unit>*{grid-column:2}.unit .equipment-art{grid-column:1;grid-row:1/7;height:100px;align-self:center}.unit strong{min-height:0}.unit:not(:last-child)::after{content:'↓';top:auto;right:50%;bottom:-21px}.product-form{line-height:18px}.diagram-legend{font-size:11px}.metric strong{font-size:27px}.heading h1{font-size:28px}}
 .top .actions{flex-wrap:nowrap;flex-shrink:0}.top .actions label{white-space:nowrap}.top .actions select{width:120px}
 @media(max-width:650px){.top{gap:10px}.top .actions{flex-wrap:wrap}.top .actions select{width:110px}}
+.inspector .form-grid{grid-template-columns:minmax(0,1fr)}
