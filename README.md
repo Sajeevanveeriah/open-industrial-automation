@@ -16,6 +16,8 @@ npm run dev
 
 15 connected operations cover receiving, washing, peeling, sorting, cutting, blanching, drying, coating/forming, frying, cooling, freezing, inspection, packing and palletising. The cold store and dispatch follow quality release. Ten workspaces expose process controls, intake, production, quality and genealogy, utilities, maintenance, alarms, integrations, scenarios and model references.
 
+The primary workspace is a selectable 3D plant with Plan, Orbit, Fit, Zoom and Focus controls. Switch overlays between equipment state, throughput, buffer inventory and temperature. The flow schematic and asset register share the same selection and process state. WebGL 2 is used where available; a vector renderer keeps the same geometry and controls usable without it. All graphics dependencies are served locally.
+
 The example opens stopped at 40 simulated minutes. Start begins the retained campaign and clock. Stop halts motion without discarding material. Drain empties the line; Hold/Resume preserve drain intent. Select equipment, play or step the clock, or choose a scenario. Export runs before replacing them.
 
 ## Delivery verification
