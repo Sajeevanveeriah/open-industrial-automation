@@ -36,7 +36,7 @@ try{
   deployed=true;
   await page.evaluate(async()=>{const r=await navigator.serviceWorker.getRegistration();await r.update();});
   await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor({timeout:30000});
-  assert.equal(await page.locator('.equipment-art').count(),15);
+  assert.equal(await page.locator('.asset-pin').count(),15);
   assert.equal(new URL(page.url()).pathname,prefix);
   assert.equal(await page.getByText('TK-101 MIX TANK',{exact:true}).count(),0);
   const retained=await page.evaluate(async()=>({neighbour:await(await caches.match('/neighbour/keep')).text(),own:(await(await caches.open('oia-suite-v2.2')).keys()).filter(r=>new URL(r.url).pathname.startsWith('/open-industrial-automation/')).length,saved:localStorage.getItem('potato-sim-sentinel')}));
