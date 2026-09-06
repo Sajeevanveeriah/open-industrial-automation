@@ -7,7 +7,7 @@ export const LAYOUT = [
  ['blanch',16,0],['dry',8,0],['coat',0,0],['form',-8,0],['fry',-16,0],
  ['cool',-16,8],['freeze',-8,8],['inspect',0,8],['pack',8,8],['pallet',16,8]
 ];
-const colours={steel:0xbcc8cc,light:0xe6ecee,dark:0x51616a,belt:0x3c5260,blue:0x2563af,green:0x26815c,amber:0xb98121,red:0xbc453c};
+const colours={steel:0xbcc8cc,light:0xe6ecee,dark:0x51616a,belt:0x3c5260,blue:0x2563af,green:0x26815c,amber:0x8e5f15,red:0xbc453c};
 const material=(c,metal=.35)=>new T.MeshStandardMaterial({color:c,metalness:metal,roughness:.48});
 const mats=Object.fromEntries(Object.entries(colours).map(([k,v])=>[k,material(v)]));
 mats.potato=material(0xc99c54,0);mats.fries=material(0xe3be72,0);mats.box=material(0xb49568,0);mats.water=material(0x669daf,.1);mats.oil=material(0x9c782b,.2);
@@ -84,9 +84,9 @@ export class SpatialPlant {
   try{const canvas=document.createElement('canvas'),context=canvas.getContext('webgl2',{antialias:true,alpha:false,powerPreference:'low-power'});this.vector=!context;this.renderer=context?new T.WebGLRenderer({canvas,context,antialias:true,alpha:false}):new SVGRenderer();host.dataset.renderer=this.vector?'vector':'webgl';}catch(e){onFailure(e);return;}
   this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));if(this.renderer.shadowMap){this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;}this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.1;
   this.canvas=this.renderer.domElement;this.canvas.setAttribute('aria-label','Interactive 3D potato plant. Select a numbered equipment marker to inspect.');this.canvas.setAttribute('role','img');host.append(this.canvas);
-  this.scene.add(this.vector?new T.AmbientLight(0xffffff,.25):new T.HemisphereLight(0xffffff,0x667b87,1.7));const sun=new T.DirectionalLight(0xffffff,this.vector ? .45 : 2);sun.position.set(-12,32,18);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-34,right:34,top:28,bottom:-28,far:100});sun.shadow.bias=-.0005;sun.shadow.normalBias=.03;this.scene.add(sun);
+  this.scene.add(this.vector?new T.AmbientLight(0x87939c,1):new T.HemisphereLight(0xffffff,0x667b87,1.7));const sun=new T.DirectionalLight(0xffffff,this.vector ? .65 : 2);sun.position.set(-12,32,18);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-34,right:34,top:28,bottom:-28,far:100});sun.shadow.bias=-.0005;sun.shadow.normalBias=.03;this.scene.add(sun);
   box(this.scene,0,-.18,0,48,.3,29,material(0xcfd8dc,0));
-  const grid=new T.GridHelper(48,24,0xc1ccd1,0xd0d9dd);grid.position.y=-.018;grid.scale.z=29/48;this.scene.add(grid);
+  const grid=new T.GridHelper(48,24,0xc1ccd1,0xd0d9dd);grid.material.vertexColors=false;grid.material.color.set(0xa6b5bf);grid.position.y=-.018;grid.scale.z=29/48;this.scene.add(grid);
   for(const z of [-11,-3,5,12]){box(this.scene,0,.005,z,44,.025,.045,material(0xb3bec4,0));}
   this.objects=new Map();this.markers=new Map();this.hit=[];this.items=[];this.visualTime=0;
   LAYOUT.forEach(([id,x,z],i)=>{
@@ -110,14 +110,14 @@ export class SpatialPlant {
   this.resize=new ResizeObserver(()=>this.cameraUpdate());this.resize.observe(host);this.cameraUpdate();
   this.dirty=true;this.lastFrame=0;this.frame=now=>{if(this.disposed)return;if(!document.hidden&&(this.dirty||(this.running&&now-this.lastFrame>(this.vector?200:33)))){this.animate();this.renderer.render(this.scene,this.camera);this.lastFrame=now;this.dirty=false;}this.raf=requestAnimationFrame(this.frame);};this.raf=requestAnimationFrame(this.frame);
  }
- cameraUpdate(){this.dirty=true;if(!this.renderer)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h,false);const aspect=w/h,size=Math.max(17,28/aspect)/this.zoom;this.camera.left=-size*aspect;this.camera.right=size*aspect;this.camera.top=size;this.camera.bottom=-size;const elev=this.plan?Math.PI/2-.001:.82,dist=55;this.camera.position.set(this.target.x+Math.sin(this.yaw)*Math.cos(elev)*dist,Math.sin(elev)*dist,this.target.z+Math.cos(this.yaw)*Math.cos(elev)*dist);this.camera.lookAt(this.target);this.camera.updateProjectionMatrix();this.positionLabels();}
+ cameraUpdate(){this.dirty=true;if(!this.renderer)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h,false);const aspect=w/h,size=Math.max(17,28/aspect)/this.zoom;this.camera.left=-size*aspect;this.camera.right=size*aspect;this.camera.top=size;this.camera.bottom=-size;const elev=this.plan?Math.PI/2-.001:.82,dist=55;this.camera.position.set(this.target.x+Math.sin(this.yaw)*Math.cos(elev)*dist,Math.sin(elev)*dist,this.target.z+Math.cos(this.yaw)*Math.cos(elev)*dist);this.camera.lookAt(this.target);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);this.positionLabels();}
  command(action){switch(action){case 'fit':this.zoom=1;this.yaw=.24;this.plan=false;this.target.set(0,0,0);this.focusId=null;break;case 'plan':this.plan=true;this.yaw=0;break;case 'orbit':this.plan=false;this.yaw+=Math.PI/6;break;case 'in':this.zoom=Math.min(3,this.zoom+.25);break;case 'out':this.zoom=Math.max(.7,this.zoom-.25);break;case 'focus':{const p=LAYOUT.find(x=>x[0]===this.selected);if(p){this.target.set(p[1],1,p[2]);this.zoom=2.5;this.focusId=this.selected;}break;}}this.cameraUpdate();this.host.dataset.camera=`${this.plan?'plan':'orbit'}:${this.yaw.toFixed(2)}:${this.zoom.toFixed(2)}:${this.focusId||'all'}`;}
  update(s,selected,playing,rate,{overlay='status',labels=true,services=true,dark=false}={}){
   if(!this.renderer)return;this.dirty=true;this.model=s;this.selected=selected;this.running=playing;this.rate=rate;this.overlay=overlay;this.labels=labels;this.serviceGroup.visible=services;this.sampleAt=performance.now();this.scene.background.set(dark?0x27333c:0xe9edef);
   const p=LAYOUT.find(x=>x[0]===selected);this.selection.position.set(p[1],2.35,p[2]);
-  for(const st of s.stages){const obj=this.objects.get(st.id),b=this.markers.get(st.id);let label=st.status,colour=st.status==='FAULT'||s.mode==='TRIPPED'?colours.red:st.status==='BLOCKED'||st.status==='TEMPERATURE'?colours.amber:st.flowKgS>0?colours.green:0x748591;
+  for(const st of s.stages){const obj=this.objects.get(st.id),b=this.markers.get(st.id);let label=st.status,colour=st.status==='FAULT'||s.mode==='TRIPPED'?colours.red:st.status==='BLOCKED'||st.status==='TEMPERATURE'?colours.amber:st.flowKgS>0?colours.green:0x596d7a;
    if(overlay==='inventory'){label=`${(st.massKg/st.bufferKg*100).toFixed(0)}% buffer`;colour=st.massKg/st.bufferKg>.8?colours.amber:colours.blue;}
-   if(overlay==='temperature'){label=s.loops[st.id]?`${s.loops[st.id].pv.toFixed(1)} °C`:'No temperature loop';colour=s.loops[st.id]?(s.loops[st.id].pv>100?colours.amber:colours.blue):0x748591;}
+   if(overlay==='temperature'){label=s.loops[st.id]?`${s.loops[st.id].pv.toFixed(1)} °C`:'No temperature loop';colour=s.loops[st.id]?(s.loops[st.id].pv>100?colours.amber:colours.blue):0x596d7a;}
    if(overlay==='flow')label=`${(st.flowKgS*3.6).toFixed(1)} t/h`;
    obj.lamp.material=colour===colours.red?mats.red:colour===colours.amber?mats.amber:st.flowKgS>0?mats.green:mats.dark;
    b.setAttribute('aria-label',`Inspect ${st.name}`);b.setAttribute('aria-pressed',String(st.id===selected));b.querySelector('strong').textContent=st.name;b.querySelector('small').textContent=label;b.style.setProperty('--pin','#'+colour.toString(16).padStart(6,'0'));b.classList.toggle('selected',st.id===selected);b.classList.toggle('details',labels);b.title=`${st.tag} · ${st.name} · ${label}`;

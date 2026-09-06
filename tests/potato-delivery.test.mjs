@@ -7,7 +7,7 @@ test('published root opens potato with resolvable assets',async()=>{
  for(const m of html.matchAll(/(?:src|href)="(\.\/[^"#]+)"/g))await access(resolve('dist',m[1].split('?')[0]));
  const app=await readFile('dist/app.mjs','utf8');
  for(const m of app.matchAll(/from '(\.\/[^']+)'/g))await access(resolve('dist',m[1].split('?')[0]));
- assert.doesNotMatch(app,/Open original OIA suite/);
+ assert.doesNotMatch(app,/Open original OIA suite/);assert.match(app,/spatial\.mjs\?v=[a-f0-9]{12}/);
 });
 test('retired application and installers are absent; old bookmarks redirect',async()=>{
  for(const path of ['web','desktop','dist/model.json','dist/suite/model.json','.github/workflows/desktop.yml','.github/workflows/release.yml'])await assert.rejects(access(path));
@@ -20,7 +20,7 @@ test('delivery has cache migration and live browser gates',async()=>{
 
 test('spatial viewer dependencies resolve without external CDNs',async()=>{
  for(const f of ['spatial.mjs','vendor/SVGRenderer.js','vendor/Projector.js','vendor/three.module.js']){
-  const code=await readFile('dist/'+f,'utf8');for(const m of code.matchAll(/from ['"](\.\/[^'"]+)['"]/g))await access(resolve('dist',f,'..',m[1]));
+  const code=await readFile('dist/'+f,'utf8');for(const m of code.matchAll(/from ['"](\.\/[^'"]+)['"]/g))await access(resolve('dist',f,'..',m[1].split('?')[0]));
  }
  await access('dist/vendor/THREE-LICENSE.txt');
 });

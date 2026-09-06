@@ -1,5 +1,5 @@
-import {cp,mkdir,rm,writeFile,readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
+import {cp,mkdir,rm,writeFile,readFile,readdir} from 'node:fs/promises';
+import {resolve,dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 const target=resolve('dist');
 await rm(target,{recursive:true,force:true});
@@ -9,6 +9,11 @@ await mkdir(resolve(target,'vendor'),{recursive:true});
 for(const file of ['three.module.js','three.core.js'])await cp(resolve('node_modules/three/build',file),resolve(target,'vendor',file));
 for(const file of ['SVGRenderer.js','Projector.js']){const code=await readFile(resolve('node_modules/three/examples/jsm/renderers',file),'utf8');await writeFile(resolve(target,'vendor',file),code.replaceAll("from 'three'","from './three.module.js'"));}
 await cp(resolve('node_modules/three/LICENSE'),resolve(target,'vendor/THREE-LICENSE.txt'));
+// Version every module edge, including transitive renderer dependencies. The
+// hash is derived from source bytes; unchanged vendor modules keep their cache.
+const modules=new Map();
+for(const f of await readdir(target,{recursive:true}))if(/\.(mjs|js)$/.test(f)&&f!=='sw.js'){const path=resolve(target,f),code=await readFile(path,'utf8');modules.set(path,{code,hash:createHash('sha256').update(code).digest('hex').slice(0,12)});}
+for(const [path,{code}] of modules)await writeFile(path,code.replace(/((?:from\s+|import\s*)['"])(\.\/[^'"]+\.(?:mjs|js))(['"])/g,(all,prefix,file,quote)=>{const dep=modules.get(resolve(dirname(path),file));return dep?`${prefix}${file}?v=${dep.hash}${quote}`:all;}));
 let html=await readFile(resolve(target,'index.html'),'utf8');
 for(const file of ['styles.css','app.mjs']){const hash=createHash('sha256').update(await readFile(resolve(target,file))).digest('hex').slice(0,12);html=html.replace(file+'?v=potato-spatial-7',file+'?v=potato-spatial-7-'+hash);}
 await writeFile(resolve(target,'index.html'),html);
