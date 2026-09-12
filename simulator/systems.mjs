@@ -1,4 +1,4 @@
-import {VENDORS,ROBOT_REFERENCE} from './vendors.mjs';
+import {VENDORS} from './vendors.mjs';
 // Browser reference models. No fieldbus, electrical certification or vendor runtime.
 export const GATES = [
  ['commercial','Commercial definition','Products, customers, capacity, packaging and funded business case'],
@@ -17,7 +17,7 @@ const ops=['vendor','wire','breaker','overload','plc','network','robotFault','ro
 const positive=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
 const item=(list,id)=>list.find(x=>x.id===id);
 export function createSystems(stages){return {
- version:1, vendor:'neutral', scanMs:100, scans:0, plcRun:true, watchdog:false, latencyMs:20,
+ version:1, vendor:'siemens', scanMs:100, scans:0, plcRun:true, watchdog:false, latencyMs:20,
  cabinets:stages.map((st,i)=>({id:`CP-${String(i+1).padStart(2,'0')}`,stage:st.id,breaker:true,overload:false,volts:24,currentA:0})),
  wires:stages.flatMap((st,i)=>['READY','PE','OL','RUN','SPEED','TEMP'].map((signal,j)=>({id:`W${i+1}-${j+1}`,stage:st.id,cabinet:`CP-${String(i+1).padStart(2,'0')}`,terminal:`X${i+1}:${j+1}`,device:`${st.tag}.${signal}`,address:`${j<3?'I':j===3?'Q':j===4?'AQ':'AI'}${i}.${j}`,signal,broken:false,value:0,quality:'GOOD'}))),
  io:{}, nodes:NODES.map(id=>({id,online:true})),
@@ -98,14 +98,16 @@ export function scanSystems(s,dt=1){
  const enabled=x.io[r.stage].output&&online('ROBOT')&&!r.latched;
  r.status=r.latched?'FAULT':!online('ROBOT')?'OFFLINE':!enabled?'STOPPED':st.massKg<0.01?'STARVED':'READY';
  // Robot paths are task-space teaching trajectories, not vendor kinematics.
- if(enabled&&st.flowKgS>0&&dt){r.progress+=dt/r.cycleS;r.handledKg+=st.flowKgS*dt;while(r.progress>=1){r.cycles++;r.progress--;}r.status='CYCLING';}
+ if(enabled&&st.flowKgS>0)r.status='CYCLING';
  const t=r.progress;r.grip=enabled&&t>=0.2&&t<0.8;r.position=[Math.sin(t*Math.PI*2)*Math.min(0.6,r.reachM),0.6+Math.sin(t*Math.PI)*0.8,t<0.5?0:0.8];
  }
 }
 export function systemBlock(s,stage){const x=s.systems,io=x.io[stage];if(!io?.output)return io?.reason||'PLC NOT SCANNED';const r=x.robots.find(a=>a.stage===stage);if(r?.latched||r?.fault)return 'ROBOT FAULT';if(r&&!item(x.nodes,'ROBOT').online)return 'ROBOT NETWORK';if(stage==='pallet'&&x.warehouse.missions.filter(a=>a.status!=='STORED').length>=4)return 'PALLET BUFFER';return null;}
 export function systemCapacity(s,stage){const r=s.systems.robots.find(a=>a.stage===stage);return r?r.payloadKg*r.parallel/r.cycleS:Infinity;}
 export function advanceSystems(s){
- const x=s.systems,w=x.warehouse,total=s.finishedLots.reduce((n,l)=>n+l.totalKg,0);
+ const x=s.systems;
+ for(const r of x.robots){const flow=s.stages.find(st=>st.id===r.stage).flowKgS;if(flow>0){r.handledKg+=flow;r.progress+=1/r.cycleS;while(r.progress>=1){r.cycles++;r.progress--;}r.status='CYCLING';}}
+ const w=x.warehouse,total=s.finishedLots.reduce((n,l)=>n+l.totalKg,0);
  while(total-w.accountedKg>=600&&w.missions.length<500){const seq=w.missions.length+1;w.missions.push({id:`PAL-${seq}`,kg:600,status:'WAITING',location:`CS-${String(seq).padStart(3,'0')}`});w.accountedKg+=600;}
  // Single shared aisle reservation avoids simultaneous robot occupancy.
  const aisleOccupied=w.amrs.some(a=>a.status==='MOVING');
