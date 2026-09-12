@@ -10,9 +10,9 @@ let server;
 const root=resolve('dist');
 const base=process.env.OIA_BASE_URL?.replace(/\/$/,'')||'http://127.0.0.1:4185';
 if(!process.env.OIA_BASE_URL){server=createServer(async(req,res)=>{try{const path=decodeURIComponent(new URL(req.url,base).pathname);const file=resolve(root,'.'+path+(path.endsWith('/')?'index.html':''));if(!file.startsWith(root+sep))throw Error();const mime={'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.css':'text/css'};res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.writeHead(404);res.end('Not found');}});await new Promise(r=>server.listen(4185,'127.0.0.1',r));}
-let browser;
+let browser,page;
 try{
- browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1440,height:1000},bypassCSP:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+ browser=await chromium.launch();page=await browser.newPage({viewport:{width:1440,height:1000},bypassCSP:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  async function openRoute(name){await page.getByRole('link',{name,exact:true}).click();await page.getByRole('heading',{name,exact:true}).waitFor({state:'visible'});}
  await page.goto(base+'/');await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();
  await page.locator('#plant-canvas [role="img"]').waitFor({state:'visible'});
@@ -32,7 +32,7 @@ try{
  for(const mode of ['Flow schematic','Asset register','Plant model']){await page.getByRole('button',{name:mode,exact:true}).click();assert.equal(await page.getByRole('button',{name:/^Inspect /}).count(),15);assert.equal(await page.locator('[data-unit="freeze"]').getAttribute('aria-pressed'),'true');await page.locator('[data-unit="fry"]').click();assert.equal(await page.locator('.inspector h2').innerText(),'Par-fry');await page.locator('[data-unit="freeze"]').click();}
  await page.getByRole('combobox',{name:'Overlay',exact:true}).selectOption('status');
  assert.equal(await page.getByRole('link',{name:'Open original OIA suite'}).count(),0);
- const routes=['Process overview','Control & I/O','Production & intake','Quality & genealogy','Utilities & environment','Maintenance & sanitation','Alarms & historian','Integration lab','Scenario studio','Engineering reference'];
+ const routes=['Process overview','Control & I/O','Production & intake','Quality & genealogy','Utilities & environment','Maintenance & sanitation','Alarms & historian','Integration lab','Scenario studio','Engineering reference','Cabinets & wiring','Robotics & warehouse','ERP & maintenance','OT/IT architecture','Project lifecycle'];
  for(const name of routes){await openRoute(name);await page.getByRole('heading',{name,exact:true}).waitFor();assert.equal(await page.locator('body').evaluate(e=>e.scrollWidth>innerWidth),false,name+' overflow');}
  async function pauseClock(){if(await page.getByRole('button',{name:'Pause clock',exact:true}).count())await page.getByRole('button',{name:'Pause clock',exact:true}).click();}
  async function exported(){const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export run',exact:true}).click();return importRun(await readFile(await(await pending).path(),'utf8'));}
@@ -76,6 +76,21 @@ try{
  // Every fault button must inject and remove its intended model cause.
  for(const fault of FAULTS){await preset('Cold start');await page.locator(`[data-cmd="fault"][data-id="${fault.id}"]`).click();assert.ok((await exported()).faults.includes(fault.id));await openRoute('Alarms & historian');const ack=page.locator('[data-cmd="ack"]').first();if(await ack.count()){if(fault.id==='comms-loss'){assert.equal(await ack.isEnabled(),false);assert.match(await ack.getAttribute('title'),/gateway is unavailable/);}else{await ack.click();assert.ok((await exported()).alarms.some(x=>x.ackAt!==null));}}await openRoute('Scenario studio');await page.locator(`.fault-row [data-cmd="clearFault"][data-id="${fault.id}"]`).click();assert.equal((await exported()).faults.includes(fault.id),false);}
  await click('+1 min');
+
+ // Connected engineering controls are exercised through the public UI and run export.
+ await preset('Steady production');await pauseClock();await openRoute('Cabinets & wiring');
+ const packCabinet=page.locator('.cabinet-detail').filter({hasText:'CP-14'});await packCabinet.locator('summary').click();
+ await page.locator('[data-sys="wire"][data-id="W14-2"]').click();await click('+1 min');assert.equal((await exported()).stages.find(a=>a.id==='pack').flowKgS,0);
+ await page.locator('[data-sys="wire"][data-id="W14-2"]').click();await click('+1 min');assert.ok((await exported()).stages.find(a=>a.id==='pack').flowKgS>0);
+ await click('Stop PLC');await click('+1 min');assert.equal((await exported()).systems.io.pack.output,false);await click('Run PLC');
+ await openRoute('Robotics & warehouse');await page.locator('[data-sys="robotFault"][data-id="case"]').click();await click('+1 min');assert.equal((await exported()).stages.find(a=>a.id==='pack').flowKgS,0);
+ await page.locator('[data-sys="robotFault"][data-id="case"]').click();assert.equal(await page.locator('[data-sys="robotReset"][data-id="case"]').isEnabled(),false);await click('Hold');await page.locator('[data-sys="robotReset"][data-id="case"]').click();await click('Resume');await pauseClock();await click('+1 min');assert.ok((await exported()).stages.find(a=>a.id==='pack').flowKgS>0);
+ await openRoute('ERP & maintenance');await click('Create purchase order');const po=(await exported()).systems.purchases.at(-1);await page.locator(`[data-sys="receivePO"][data-id="${po.id}"]`).click();assert.equal((await exported()).rawLots.at(-1).grade,'HOLD');assert.equal(await page.locator(`[data-sys="receivePO"][data-id="${po.id}"]`).isEnabled(),false);
+ await click('Create sales order');assert.equal((await exported()).systems.sales.length,1);await click('Schedule production');assert.ok((await exported()).systems.sales[0].campaignId);
+ await openRoute('OT/IT architecture');await page.locator('[data-sys="network"][data-id="REMOTE-IO"]').click();await click('+1 min');assert.equal((await exported()).systems.io.pack.output,false);await page.locator('[data-sys="network"][data-id="REMOTE-IO"]').click();
+ await openRoute('Project lifecycle');assert.equal(await page.locator('[data-sys="gate"][data-id="commercial"]').isEnabled(),false);await page.getByLabel('Evidence or review note').fill('Synthetic business case reviewed');await click('Record evidence');await page.locator('[data-sys="gate"][data-id="commercial"]').click();assert.equal((await exported()).systems.gates[0].status,'ACCEPTED');await page.getByLabel('Change and reason for reassessment').fill('Increase model design capacity');await click('Open change review');assert.equal((await exported()).systems.gates[0].status,'OPEN');
+ await openRoute('Cabinets & wiring');for(const label of ['Export wiring CSV','Export cabinet BOM']){const pending=page.waitForEvent('download');await click(label);assert.ok((await readFile(await(await pending).path())).length>500);}
+
  // Saved run and import paths are checked through exported user-visible data.
  await openRoute('Engineering reference');await click('Save in this browser');const saved=await exported();await click('Reset run');await click('Keep current run');assert.equal((await exported()).time,saved.time);await click('Reset run');await click('Replace run');assert.equal((await exported()).time,0);await click('Load saved run');await click('Replace run');assert.equal((await exported()).time,saved.time);
  await page.locator('#import-file').setInputFiles({name:'invalid.json',mimeType:'application/json',buffer:Buffer.from('{}')});await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Import failed'));assert.equal(await page.getByRole('dialog').isVisible(),false);
@@ -88,9 +103,11 @@ try{
  for(const alias of ['suite/','potato/','products/operations/','suite/products/operations/','demo/','studio/']){await page.goto(base+'/'+alias);await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();assert.equal(new URL(page.url()).pathname,new URL(base+'/').pathname);assert.equal(await page.locator('.asset-pin').count(),15);}
  await mkdir('/tmp/oia-qa',{recursive:true});
  await page.setViewportSize({width:1440,height:1100});await page.screenshot({path:'/tmp/oia-qa/potato-desktop.png',fullPage:true});
- await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/oia-qa/potato-mobile.png',fullPage:true});
- await writeFile('/tmp/oia-qa/result.json',JSON.stringify({base,routes:10,viewports:[390,768,1440],equipment:15,legacyAliases:6,consoleErrors:errors},null,2));
+ for(const [route,file] of [['Cabinets & wiring','electrical'],['Robotics & warehouse','robotics'],['ERP & maintenance','enterprise'],['Project lifecycle','lifecycle']]){await openRoute(route);if(file==='electrical')await page.locator('.cabinet-detail summary').first().click();await page.screenshot({path:`/tmp/oia-qa/${file}.png`,fullPage:false});}
+ await openRoute('Process overview');await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/oia-qa/potato-mobile.png',fullPage:true});
+ await writeFile('/tmp/oia-qa/result.json',JSON.stringify({base,routes:routes.length,viewports:[390,768,1440],equipment:15,legacyAliases:6,consoleErrors:errors},null,2));
  await page.keyboard.press('Tab');assert.notEqual(await page.evaluate(()=>document.activeElement.tagName),'BODY');
  const vectorBrowser=await chromium.launch({args:['--disable-webgl']});try{const vectorPage=await vectorBrowser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});await vectorPage.goto(base+'/');await vectorPage.locator('#plant-canvas svg[role="img"]').waitFor();assert.equal(await vectorPage.locator('#plant-canvas').getAttribute('data-renderer'),'vector');await vectorPage.getByRole('button',{name:'Plan',exact:true}).click();await vectorPage.locator('[data-unit="fry"]').click();assert.equal(await vectorPage.locator('.inspector h2').innerText(),'Par-fry');await vectorPage.screenshot({path:'/tmp/oia-qa/potato-vector.png',fullPage:false});}finally{await vectorBrowser.close();}
- assert.deepEqual(errors,[]);console.log('PASS: ten routes, three viewports, spatial camera/overlays/three views, WebGL fallback, accessibility, 15 operated inspectors, Start/Stop/restart, model-control readback, all fault controls, receipts/orders/recipes, maintenance/sanitation, gateway/ERP, import/save/load/export, hold/resume, trip guards/recovery, quality release/dispatch, tag filtering, time lens, save/export, role restrictions, themes and keyboard focus.');
-}finally{await browser?.close();if(server)await new Promise(r=>server.close(r));}
+ assert.deepEqual(errors,[]);console.log('PASS: fifteen routes, connected cabinets/wiring/PLC/robots/ERP/network/lifecycle, three viewports, spatial camera/overlays/three views, WebGL fallback, accessibility, 15 operated inspectors, Start/Stop/restart, model-control readback, all fault controls, receipts/orders/recipes, maintenance/sanitation, gateway/ERP, import/save/load/export, hold/resume, trip guards/recovery, quality release/dispatch, tag filtering, time lens, save/export, role restrictions, themes and keyboard focus.');
+}catch(error){if(page){await mkdir('/tmp/oia-qa',{recursive:true});await page.screenshot({path:'/tmp/oia-qa/failure.png',fullPage:true}).catch(()=>{});}throw error;}finally{await browser?.close();if(server)await new Promise(r=>server.close(r));}
+

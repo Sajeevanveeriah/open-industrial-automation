@@ -4,7 +4,7 @@ Independent, synthetic engineering study for Farm Frites Dooen technical review.
 
 ## Run
 
-Use Node.js 24 for build and tests. `npm run build` publishes only the potato simulator at the root. All retired suite, product, demo and studio URLs, plus `/potato/`, redirect to that root. Serve `dist` with any static HTTP server. The simulator has no runtime dependencies and makes no external API calls. Open `/`. The initial view is a stopped 40-minute production example with a functional Start/Stop pair, with all 15 equipment illustrations tied to model inventory and flow. Cold start remains available in Scenario studio.
+Use Node.js 24 for build and tests. `npm run build` publishes only the potato simulator at the root. All retired suite, product, demo and studio URLs, plus `/potato/`, redirect to that root. Serve `dist` with any static HTTP server. The browser runtime bundles Three.js locally and makes no external API calls. Open `/`. The initial view is a stopped 40-minute production example with a functional Start/Stop pair, with all 15 equipment illustrations tied to model inventory and flow. Cold start remains available in Scenario studio.
 
 `npm run test:simulation` runs the deterministic Node domain tests. `npm run test:simulation-ui` runs the Playwright regression suite against the built app; it requires the repository's existing development dependencies and a Chromium installation. Set `OIA_BASE_URL` to test a deployment instead of the local build.
 
@@ -50,4 +50,17 @@ The in-app Engineering reference includes the public source register and all mod
 
 The original OIA suite and desktop sources have been removed from the current application. Historical commits and releases remain in GitHub history. A scoped worker migrates cached legacy sessions automatically, with root and nested cache-upgrade regressions in CI. GitHub Pages deployment remains behind repository verification. Rollback is a reviewed revert and redeployment, with no force-push or unrelated file deletion.
 
-Installer workflows and the installer-dependent release workflow are removed at Saj's request. Desktop source is retained but no installers are built by CI.
+Installer workflows and the installer-dependent release workflow are removed at Saj's request. Desktop source and installer workflows are absent from the published application.
+
+
+## Connected engineering expansion
+
+Five additional workspaces expose cabinets and wiring, robotics and warehouse, ERP and maintenance, OT/IT architecture and project lifecycle. Fifteen illustrative cabinets have 90 uniquely addressed, traceable circuits. Open circuits, loss of cabinet power, overloads, PLC stop and remote-I/O loss gate actual equipment throughput. The reference PLC evaluates ten 100 ms scans per one-second material integration step. Naming profiles do not run vendor code.
+
+Four parallel case-picking cells use an illustrative 5 kg product payload plus 1 kg tooling and a two-second cycle; one palletising cell uses 30 kg product plus 20 kg tooling and a three-second cycle. Capacity changes constrain material transfer. Gripper fault removal, manual reset and plant resume are separate actions. Two AMRs use a single aisle reservation and move full 600 kg pallet equivalents. This is task-space motion, not full robot dynamics or vendor virtual commissioning. Pallets are aggregate logistics equivalents; lot genealogy remains in the process ledger.
+
+Purchase receipts join the conserved raw ledger in quality hold. Sales reservations require released stock and invoices require sufficient dispatch. Work-order closure requires equipment isolation and consumes a spare. Costing uses declared illustrative rates, not a full accounting package. Network fault domains gate supervisory actions, sample collection, controllers, robots and message delivery. A 500 ms communication watchdog removes outputs.
+
+Lifecycle gates require evidence and preceding acceptance. Controlled change reopens all gates. These are simulated review records, not approvals or certifications. Engineering review JSON includes complete systems state and the in-process integration contract; wiring and cabinet BOM export as CSV. Full run export/import preserves systems commands through deterministic replay.
+
+The new release retains limitations: no actual Dooen CAD or electrical drawings, vendor PLC/robot binaries, real OPC UA/MQTT connection, finite-element physics, microbiological validation, certified safety, durable shared backend or real financial transactions. Cabinet current is an illustrative three-phase estimate with assumed 415 V and 0.88 power factor; protective-device selection and conductor sizing are not established.

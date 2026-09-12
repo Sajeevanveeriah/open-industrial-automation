@@ -1,3 +1,4 @@
+import {createSystems,systemReason,applySystem,scanSystems,systemBlock,systemCapacity,advanceSystems} from './systems.mjs';
 import {VERSION, LIMITS, STAGES, RECIPES, FAULTS, CLEAN_PHASES, SCENARIOS, SOURCES, ASSUMPTIONS} from './catalog.mjs';
 import {COMPONENTS, clamp, mass, zeroComponents, addComponents, splitParcel, thermal, dwell, outputFactor, transformParcel, piStep} from './physics.mjs';
 
@@ -22,7 +23,7 @@ const permissions = {
  maintenance:['ack','hold','estop','isolate','unisolate','repair','clean','restock'],
  reviewer:[]
 };
-const commandNames = new Set(['role','start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
+const commandNames = new Set(['system','role','start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
 
 function event(s, kind, message, details = {}) {
   const item = {id:`EV-${++s.counters.event}`,at:s.time,kind,message,details};
@@ -39,7 +40,7 @@ function deliver(s,item) {
   if (item.status === 'DELIVERED') return;
   item.attempts += 1;
   item.lastAttempt = s.time;
-  if (has(s,'erp-offline')) return;
+  if (has(s,'erp-offline') || s.systems.nodes.some(n=>['ERP','MES','DMZ'].includes(n.id)&&!n.online)) return;
   if (!s.delivered.some(x => x.id === item.id)) s.delivered.push({id:item.id,at:s.time,kind:item.kind});
   item.status = 'DELIVERED';
 }
@@ -66,6 +67,9 @@ function quarantineWIP(s,reason) {
   for (const stage of s.stages) for (const p of stage.queue) if (!p.holdReasons.includes(reason)) p.holdReasons.push(reason);
 }
 function updateAlarms(s) {
+  for(const c of s.systems.cabinets)alarm(s,c.id,!c.breaker||c.overload||s.systems.wires.some(w=>w.cabinet===c.id&&w.broken),c.stage,'HIGH','Cabinet '+c.id+': inspect power, overload and wiring');
+  for(const r of s.systems.robots)alarm(s,r.id+'-robot',r.latched,r.stage,'HIGH',r.name+': remove fault, hold line and reset robot');
+  alarm(s,'plc-watchdog',!s.systems.plcRun||s.systems.watchdog,'PLC','HIGH','PLC stopped or communication watchdog expired');
   for (const f of FAULTS) alarm(s,f.id,has(s,f.id),f.unit,f.severity,f.effect);
   alarm(s,'raw-starved',s.mode === 'RUNNING' && !rawAvailable(s),'intake','HIGH','No released raw material available');
   alarm(s,'water-tank-low',s.utilities.waterM3 < 5,'wash','HIGH','Process water inventory is low');
@@ -102,6 +106,7 @@ export function createPlant({seed = 42} = {}) {
     uptime:{plannedS:0,runningS:0,holdS:0,tripS:0},
     recent:{packedKg:0,at:0,outputKgH:0}
   };
+  s.systems=createSystems(s.stages);scanSystems(s,0);
   event(s,'INITIALISE','Independent potato-processing simulation initialised; all data synthetic');
   recordHistory(s);
   return s;
@@ -109,6 +114,7 @@ export function createPlant({seed = 42} = {}) {
 
 export function permissives(s) {
   return [
+    {id:'controller',ok:s.systems.plcRun&&!s.systems.watchdog&&s.systems.nodes.find(n=>n.id==='REMOTE-IO').online,reason:'PLC running and field I/O network available'},
     {id:'trip',ok:!s.faults.some(id => faultFor(id)?.severity === 'TRIP') && s.loops.fry.pv <= 200,reason:'No active protective trip'},
     {id:'raw',ok:Boolean(rawAvailable(s)),reason:'At least one released raw lot'},
     {id:'order',ok:Boolean(activeOrder(s) || queuedOrder(s)),reason:'Compatible active or queued campaign'},
@@ -125,6 +131,8 @@ function validateCommand(s,type,p) {
   if (s.journal.length >= LIMITS.maxCommands) return 'This run has reached its 3,000-command boundary. Export it and start a new run.';
   if (!p || typeof p !== 'object' || Array.isArray(p)) return 'Command payload must be an object';
   if (type === 'role') return roles.includes(p.id) ? null : 'Unknown simulation role';
+  if (type === 'system') return systemReason(s,p);
+  if(s.systems.nodes.some(n=>n.id==='SCADA'&&!n.online)&&!['role','estop','releaseEstop'].includes(type))return 'SCADA offline; restore it in OT/IT architecture';
   if (s.role !== 'instructor' && !permissions[s.role]?.includes(type)) return `The ${s.role} simulation role cannot perform ${type}`;
   if (has(s,'comms-loss') && !['fault','clearFault','role','estop','releaseEstop','reconcile'].includes(type)) return 'Supervisory gateway is unavailable; use the instructor to restore it';
   const st = stageFor(s,p.id), lot = s.finishedLots.find(x => x.id === p.id), raw = s.rawLots.find(x => x.id === p.id);
@@ -188,6 +196,7 @@ export function act(s,type,payload = {}) {
   s.journal.push({at:s.time,type,payload:p});
   const st = stageFor(s,p.id), lot = s.finishedLots.find(x=>x.id===p.id), raw = s.rawLots.find(x=>x.id===p.id);
   switch(type) {
+    case 'system': applySystem(s,p); break;
     case 'role': s.role=p.id; break;
     case 'start': {
       if(!activeOrder(s)){s.activeOrderId=queuedOrder(s).id;activeOrder(s).status='ACTIVE';s.resumeTarget='RUNNING';}
@@ -268,6 +277,7 @@ export function act(s,type,payload = {}) {
     case 'ack':s.alarms.find(x=>x.id===p.id).ackAt=s.time;break;
     case 'reconcile':for(const item of s.outbox)deliver(s,item);break;
   }
+  scanSystems(s,0);
   event(s,'COMMAND',`${type} (${s.role})`,p);
   updateAlarms(s);
   return yes(`${type} applied at ${s.time} s`);
@@ -297,6 +307,7 @@ function finishedPacket(s,p) {
 }
 function stageBlocked(s,st) {
   if(st.isolated)return 'ISOLATED';
+  if(systemBlock(s,st.id))return 'CONTROL';
   const ids={wash:['water-low'],peel:['steam-low'],cut:['conveyor-jam'],pack:['pack-film','air-low']};
   if((ids[st.id]||[]).some(id=>has(s,id)))return 'FAULT';
   if(st.id==='wash'&&(s.utilities.waterM3<1||s.ww.volumeM3>245))return 'UTILITY';
@@ -314,7 +325,7 @@ function processStages(s) {
     if(blocked){st.status=blocked;continue;}
     if(!st.queue.length){st.status='STARVED';continue;}
     st.status='RESIDENCE';
-    let capacity=st.capacityKgH*st.speed/3600;
+    let capacity=Math.min(st.capacityKgH*st.speed/3600,systemCapacity(s,st.id));
     while(capacity>1e-8&&st.queue.length){
       const packet=st.queue[0];
       if(packet.ready>s.time)break;
@@ -341,7 +352,7 @@ function processStages(s) {
   }
 }
 function feed(s) {
-  if(s.mode!=='RUNNING')return;
+  if(s.mode!=='RUNNING'||systemBlock(s,'intake'))return;
   let order=activeOrder(s);
   if(!order)return;
   if(order.rawFedKg>=order.targetRawKg-1e-6){
@@ -415,7 +426,7 @@ function tick(s) {
   utilityStep(s);
   if(s.loops.fry.pv>200&&s.mode!=='TRIPPED'){setMode(s,'TRIPPED','Fryer high-high temperature');quarantineWIP(s,'Protective shutdown review hold');}
   if(s.mode==='STARTING'&&thermalReady(s))setMode(s,s.startTarget||'RUNNING','Thermal systems ready');
-  processStages(s);feed(s);sanitationStep(s);
+  for(let scan=0;scan<10;scan++)scanSystems(s,0.1);processStages(s);feed(s);sanitationStep(s);advanceSystems(s);
   if(s.mode==='DRAINING'&&wip(s)<1e-6){
     const order=activeOrder(s);if(order)order.status=order.rawFedKg>=order.targetRawKg-1e-6?'COMPLETE':'STOPPED_EARLY';
     s.activeOrderId=null;setMode(s,'STOPPED','All work in process drained');
@@ -427,7 +438,7 @@ function tick(s) {
   if(s.mode==='TRIPPED')s.uptime.tripS++;
   if(s.time%60===0){for(const item of s.outbox)if(item.status==='PENDING')deliver(s,item);}
   updateAlarms(s);
-  if(s.time%LIMITS.historySeconds===0)recordHistory(s);
+  if(s.time%LIMITS.historySeconds===0&&s.systems.nodes.find(n=>n.id==='HISTORIAN').online)recordHistory(s);
 }
 export function advance(s,seconds) {
   if(!Number.isInteger(seconds)||seconds<0||seconds>LIMITS.maxSeconds||s.time+seconds>LIMITS.maxSeconds)throw new RangeError('Advance requires whole seconds within a 24-hour simulation');
@@ -467,6 +478,9 @@ export function assertPlant(s) {
   for(const lot of s.rawLots)nonnegative(lot.id,lot.kg);
   for(const [key,l] of Object.entries(s.loops))for(const field of ['pv','sp','measured','output','integral'])if(!Number.isFinite(l[field]))problems.push(`${key}.${field}: nonfinite`);
   for(const [key,n] of Object.entries(s.stores))nonnegative(key,n);
+  for(const c of s.systems.cabinets){nonnegative(c.id+'.volts',c.volts);nonnegative(c.id+'.current',c.currentA);}
+  for(const r of s.systems.robots){nonnegative(r.id+'.handled',r.handledKg);if(r.progress<0||r.progress>=1)problems.push('Robot phase outside cycle');if((r.latched||r.gateOpen)&&r.grip)problems.push('Faulted robot gripper still energised');}
+  if(s.systems.warehouse.amrs.filter(a=>a.status==='MOVING').length>1)problems.push('AMR aisle reservation conflict');
   const L=s.ledger,u=s.utilities,ww=s.ww;
   const raw=s.rawLots.reduce((n,x)=>n+x.kg,0),product=s.finishedLots.reduce((n,x)=>n+x.totalKg,0);
   const residualKg=L.initialRawKg+L.receivedRawKg+L.oilAddedKg+L.coatAddedKg+L.waterAddedKg-raw-wip(s)-product-mass(L.waste)-L.rawRejectedKg-L.vapourKg;
@@ -490,6 +504,8 @@ function liveTags(s) {
   }
   for(const [id,l] of Object.entries(s.loops)){const st=stageFor(s,id);tag(`${st.tag}.TT.PV`,l.measured,'deg C');tag(`${st.tag}.TT.TRUTH`,l.pv,'deg C');tag(`${st.tag}.TT.SP`,l.sp,'deg C');tag(`${st.tag}.CV`,l.output,'%');}
   tag('UTIL-STEAM.PT',s.utilities.steamKPa,'kPa');tag('UTIL-AIR.PT',s.utilities.airKPa,'kPa');tag('UTIL-WATER.LT',s.utilities.waterM3,'m3');tag('WW-EQ.LT',s.ww.volumeM3,'m3');tag('WW-EQ.COD',s.ww.volumeM3?s.ww.codKg/s.ww.volumeM3:0,'kg/m3');tag('COLD-STORE.TT',s.warehouse.tempC,'deg C');tag('PLANT.MODE',s.mode,'state','String');tag('PLANT.CLOCK',s.time,'s');
+  for(const w of s.systems.wires)result.push({id:'IO.'+w.device,value:w.value,unit:w.signal==='TEMP'?'deg C':w.signal==='SPEED'?'%':'boolean',type:'Float64',at:s.time,quality:w.quality});
+  tag('PLC.SCAN_COUNT',s.systems.scans,'count');tag('PLC.WATCHDOG',s.systems.watchdog,'boolean','Boolean');
   return result;
 }
 export function tags(s) {
@@ -524,15 +540,18 @@ export function scenario(id,seed = 42) {
   return replayRun({format:'potato-sim/1',version:VERSION,seed,until:preset.until,commands:preset.events});
 }
 export function review(s) {
-  return {title:'Potato-Plant-Simulation - independent engineering study',version:VERSION,simulationOnly:true,notAValidatedDooenDigitalTwin:true,author:'Sajeevan Veeriah',sources:copy(SOURCES),assumptions:copy(ASSUMPTIONS),summary:summarise(s),conservation:assertPlant(s),recipes:copy(RECIPES),equipment:copy(STAGES),controls:copy(s.loops),orders:copy(s.orders),rawLots:copy(s.rawLots),finishedLots:copy(s.finishedLots),shipments:copy(s.shipments),utilities:copy(s.utilities),wastewater:copy(s.ww),alarms:copy(s.alarms),events:copy(s.events),sanitation:copy(s.clean),maintenance:copy(s.jobs),integration:{outbox:copy(s.outbox),delivered:copy(s.delivered)},history:copy(s.history),run:JSON.parse(exportRun(s))};
+  return {title:'Potato-Plant-Simulation - independent engineering study',version:VERSION,simulationOnly:true,notAValidatedDooenDigitalTwin:true,author:'Sajeevan Veeriah',sources:copy(SOURCES),assumptions:copy(ASSUMPTIONS),summary:summarise(s),conservation:assertPlant(s),recipes:copy(RECIPES),equipment:copy(STAGES),controls:copy(s.loops),systems:copy(s.systems),integrationContract:{schema:"oia.reference/1",transport:"in-process simulation",fields:["tag","value","unit","quality","simulationTime"],commands:"validated command journal",delivery:"idempotent by message ID",security:"simulated roles, no authentication"},orders:copy(s.orders),rawLots:copy(s.rawLots),finishedLots:copy(s.finishedLots),shipments:copy(s.shipments),utilities:copy(s.utilities),wastewater:copy(s.ww),alarms:copy(s.alarms),events:copy(s.events),sanitation:copy(s.clean),maintenance:copy(s.jobs),integration:{outbox:copy(s.outbox),delivered:copy(s.delivered)},history:copy(s.history),run:JSON.parse(exportRun(s))};
 }
 export function csv(s,kind) {
   let columns,rows;
   if(kind==='historian'){columns=['time_s','mode','feed_kg_h','output_kg_h','wip_kg','packed_kg','blanch_degC','fry_degC','freeze_degC','water_m3','wastewater_m3','electric_kW','active_alarms'];rows=s.history.map(x=>Object.values(x));}
   else if(kind==='tags'){columns=['tag','value','unit','type','time_s','quality'];rows=tags(s).map(x=>[x.id,x.value,x.unit,x.type,x.at,x.quality]);}
   else if(kind==='genealogy'){columns=['finished_lot','raw_lot','order','recipe','total_kg','pending_kg','released_kg','shipped_kg','scrapped_kg','hold_reasons'];rows=s.finishedLots.map(x=>[x.id,x.rawLotId,x.orderId,x.recipe,x.totalKg,x.pendingKg,x.releasedKg,x.shippedKg,x.scrappedKg,x.holdReasons.join('; ')]);}
+  else if(kind==='wiring'){columns=['wire','cabinet','terminal','device','address','signal','value','quality','open_circuit'];rows=s.systems.wires.map(w=>[w.id,w.cabinet,w.terminal,w.device,w.address,w.signal,w.value,w.quality,w.broken]);}
+  else if(kind==='bom'){columns=['cabinet','asset','component','quantity','rating_basis'];rows=s.systems.cabinets.flatMap(c=>[['QF1',1,'Concept only - protection not sized'],['PS1',1,'24 V DC'],['CPU_IO',1,'6 reference signals'],['VFD',1,'Illustrative motor drive'],['TERMINAL',6,'Point-to-point reference']].map(([part,qty,rating])=>[c.id,c.stage,part,qty,rating]));}
   else throw new Error('Unknown CSV export');
   const quote=value=>{let text=String(value??'');if(typeof value==='string'&&/^[=+@\-\t\r]/.test(text))text=`'${text}`;return `"${text.replaceAll('"','""')}"`;};
   return `${columns.join(',')}\n${rows.map(row=>row.map(quote).join(',')).join('\n')}\n`;
 }
+
 

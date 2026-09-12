@@ -11,7 +11,7 @@ test('published root opens potato with resolvable assets',async()=>{
 });
 test('retired application and installers are absent; old bookmarks redirect',async()=>{
  for(const path of ['web','desktop','dist/model.json','dist/suite/model.json','.github/workflows/desktop.yml','.github/workflows/release.yml'])await assert.rejects(access(path));
- for(const path of ['potato','suite','products/operations','suite/products/operations','demo','studio'])assert.match(await readFile(`dist/${path}/index.html`,'utf8'),/http-equiv="refresh".*potato-spatial-8#plant/);
+ for(const path of ['potato','suite','products/operations','suite/products/operations','demo','studio'])assert.match(await readFile(`dist/${path}/index.html`,'utf8'),/http-equiv="refresh".*potato-systems-9#plant/);
  assert.match(await readFile('dist/suite/sw.js','utf8'),/client.navigate/);
 });
 test('delivery has cache migration and live browser gates',async()=>{
@@ -24,3 +24,4 @@ test('spatial viewer dependencies resolve without external CDNs',async()=>{
  }
  await access('dist/vendor/THREE-LICENSE.txt');
 });
+

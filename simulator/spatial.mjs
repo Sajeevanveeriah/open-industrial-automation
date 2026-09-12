@@ -7,7 +7,7 @@ export const LAYOUT = [
  ['blanch',16,0],['dry',8,0],['coat',0,0],['form',-8,0],['fry',-16,0],
  ['cool',-16,8],['freeze',-8,8],['inspect',0,8],['pack',8,8],['pallet',16,8]
 ];
-const colours={steel:0xbcc8cc,light:0xe6ecee,dark:0x51616a,belt:0x3c5260,blue:0x2563af,green:0x26815c,amber:0x8e5f15,red:0xbc453c};
+const colours={steel:0xbcc8cc,light:0xe6ecee,dark:0x51616a,belt:0x3c5260,blue:0x2563af,green:0x326eb5,amber:0x8e5f15,red:0xbc453c};
 const material=(c,metal=.35)=>new T.MeshStandardMaterial({color:c,metalness:metal,roughness:.48});
 const mats=Object.fromEntries(Object.entries(colours).map(([k,v])=>[k,material(v)]));
 mats.potato=material(0xc99c54,0);mats.fries=material(0xe3be72,0);mats.box=material(0xb49568,0);mats.water=material(0x669daf,.1);mats.oil=material(0x9c782b,.2);
@@ -130,3 +130,4 @@ export class SpatialPlant {
  }
  dispose(){this.disposed=true;cancelAnimationFrame(this.raf);this.resize?.disconnect();this.canvas?.removeEventListener('wheel',this.wheel);this.canvas?.removeEventListener('webglcontextlost',this.contextLost);this.renderer?.dispose?.();this.renderer?.forceContextLoss?.();const sharedGeometries=new Set(geometryCache.values()),sharedMaterials=new Set(Object.values(mats));this.scene.traverse(o=>{if(o.geometry&&!sharedGeometries.has(o.geometry))o.geometry.dispose();if(o.material&&!Array.isArray(o.material)&&!sharedMaterials.has(o.material))o.material.dispose();o.shadow?.dispose?.();});this.host.replaceChildren();}
 }
+
