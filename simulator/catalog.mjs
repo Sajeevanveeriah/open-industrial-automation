@@ -1,5 +1,5 @@
 // All engineering values below are illustrative model assumptions, not Dooen specifications.
-export const VERSION = '3.0.0';
+export const VERSION = '3.0.1';
 export const LIMITS = Object.freeze({maxSeconds:86400,maxCommands:3000,maxImportBytes:1500000,maxEvents:3000,historySeconds:15});
 export const STAGES = [
  {id:'intake',tag:'RCV-101',name:'Intake & weigh',area:'Preparation',capacityKgH:35000,dwellS:45,bufferKg:900,kW:18,kind:'hopper',description:'Meter released raw lots onto the line. Unreleased receipts cannot feed.'},
