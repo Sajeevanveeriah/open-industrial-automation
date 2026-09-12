@@ -13,7 +13,7 @@ export const GATES = [
  ['improve','Continuous improvement','Yield, OEE, customer feedback and controlled change review']
 ];
 export const NODES = ['ERP','MES','HISTORIAN','DMZ','SCADA','PLC','REMOTE-IO','ROBOT'];
-const ops=['vendor','wire','breaker','overload','plc','network','robotFault','robotGate','robotReset','robotRate','purchase','receivePO','sales','reserve','invoice','workOrder','completeWork','evidence','gate','change','latency'];
+const ops=['vendor','wire','breaker','overload','plc','network','robotFault','robotGate','robotReset','robotRate','purchase','receivePO','sales','planSales','reserve','invoice','workOrder','completeWork','evidence','gate','change','latency'];
 const positive=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
 const item=(list,id)=>list.find(x=>x.id===id);
 export function createSystems(stages){return {
@@ -42,6 +42,7 @@ export function systemReason(s,p){
  case 'purchase':return positive(p.kg,1000,50000)&&positive(p.price,0.01,10)&&x.purchases.length<100?null:'Purchase requires 1,000-50,000 kg and AUD 0.01-10/kg; limit 100';
  case 'receivePO':return item(x.purchases,p.id)?.status==='ORDERED'?null:'Purchase is missing or already received';
  case 'sales':return positive(p.kg,1,100000)&&positive(p.price,0.01,100)&&x.sales.length<100?null:'Sales order requires 1-100,000 kg and AUD 0.01-100/kg; limit 100';
+ case 'planSales':{const o=item(x.sales,p.id);return !o||o.campaignId?'Select a sales order without a campaign':s.orders.length>=100?'Campaign limit reached':null;}
  case 'reserve':{const o=item(x.sales,p.id),available=s.finishedLots.reduce((n,l)=>n+l.releasedKg,0)-x.sales.filter(a=>a.status==='RESERVED').reduce((n,a)=>n+a.kg,0);return !o||o.status!=='OPEN'?'Select an open sales order':available<o.kg?'Insufficient quality-released stock':null;}
  case 'invoice':{const o=item(x.sales,p.id),shipped=s.shipments.reduce((n,a)=>n+a.kg,0),invoiced=x.sales.filter(a=>a.status==='INVOICED').reduce((n,a)=>n+a.kg,0);return !o||o.status!=='RESERVED'?'Reserve this order first':shipped-invoiced<o.kg?'Dispatch sufficient released stock in Quality before invoicing':null;}
  case 'workOrder':return s.stages.some(a=>a.id===p.id)&&x.workOrders.length<100?null:'Unknown equipment or work-order limit reached';
@@ -68,6 +69,7 @@ export function applySystem(s,p){
  case 'purchase':x.purchases.push({id:id('PO'),kg:p.kg,price:p.price,status:'ORDERED'});break;
  case 'receivePO':{const po=item(x.purchases,p.id);po.status='RECEIVED';po.rawLotId=`SIM-RAW-${String(++s.counters.raw).padStart(3,'0')}`;s.rawLots.push({id:po.rawLotId,source:po.id,kg:po.kg,dryMatter:21,sugar:0.12,grade:'HOLD',receivedAt:s.time});s.ledger.receivedRawKg+=po.kg;break;}
  case 'sales':x.sales.push({id:id('SO'),kg:p.kg,price:p.price,status:'OPEN'});break;
+ case 'planSales':{const o=item(x.sales,p.id);const campaign={id:`SIM-ORDER-${String(++s.counters.order).padStart(3,'0')}`,recipe:s.activeRecipe,targetRawKg:Math.max(1000,Math.ceil(o.kg/0.7)),rawFedKg:0,producedKg:0,status:'QUEUED',createdAt:s.time};s.orders.push(campaign);o.campaignId=campaign.id;break;}
  case 'reserve':item(x.sales,p.id).status='RESERVED';break;
  case 'invoice':{const o=item(x.sales,p.id);o.status='INVOICED';o.invoice=id('INV');o.totalAUD=o.kg*o.price;break;}
  case 'workOrder':x.workOrders.push({id:id('WO'),stage:p.id,status:'OPEN',at:s.time});break;
