@@ -12,7 +12,7 @@ const base=process.env.OIA_BASE_URL?.replace(/\/$/,'')||'http://127.0.0.1:4185';
 if(!process.env.OIA_BASE_URL){server=createServer(async(req,res)=>{try{const path=decodeURIComponent(new URL(req.url,base).pathname);const file=resolve(root,'.'+path+(path.endsWith('/')?'index.html':''));if(!file.startsWith(root+sep))throw Error();const mime={'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'};res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.writeHead(404);res.end('Not found');}});await new Promise(r=>server.listen(4185,'127.0.0.1',r));}
 let browser,page;
 try{
- browser=await chromium.launch();page=await browser.newPage({viewport:{width:1440,height:1000},bypassCSP:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+ browser=await chromium.launch();const context=await browser.newContext({viewport:{width:1440,height:1000},bypassCSP:true});page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  async function openRoute(name){await page.getByRole('link',{name,exact:true}).click();await page.getByRole('heading',{name,exact:true}).waitFor({state:'visible'});}
  await page.goto(base+'/');await page.getByRole('heading',{name:'Process overview',exact:true}).waitFor();
  await page.locator('#plant-canvas [role="img"]').waitFor({state:'visible'});
