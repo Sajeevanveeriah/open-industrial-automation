@@ -478,6 +478,9 @@ export function assertPlant(s) {
   for(const lot of s.rawLots)nonnegative(lot.id,lot.kg);
   for(const [key,l] of Object.entries(s.loops))for(const field of ['pv','sp','measured','output','integral'])if(!Number.isFinite(l[field]))problems.push(`${key}.${field}: nonfinite`);
   for(const [key,n] of Object.entries(s.stores))nonnegative(key,n);
+  for(const c of s.systems.cabinets){nonnegative(c.id+'.volts',c.volts);nonnegative(c.id+'.current',c.currentA);}
+  for(const r of s.systems.robots){nonnegative(r.id+'.handled',r.handledKg);if(r.progress<0||r.progress>=1)problems.push('Robot phase outside cycle');if((r.latched||r.gateOpen)&&r.grip)problems.push('Faulted robot gripper still energised');}
+  if(s.systems.warehouse.amrs.filter(a=>a.status==='MOVING').length>1)problems.push('AMR aisle reservation conflict');
   const L=s.ledger,u=s.utilities,ww=s.ww;
   const raw=s.rawLots.reduce((n,x)=>n+x.kg,0),product=s.finishedLots.reduce((n,x)=>n+x.totalKg,0);
   const residualKg=L.initialRawKg+L.receivedRawKg+L.oilAddedKg+L.coatAddedKg+L.waterAddedKg-raw-wip(s)-product-mass(L.waste)-L.rawRejectedKg-L.vapourKg;

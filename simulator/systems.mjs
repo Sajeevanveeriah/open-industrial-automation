@@ -13,7 +13,7 @@ export const GATES = [
  ['improve','Continuous improvement','Yield, OEE, customer feedback and controlled change review']
 ];
 export const NODES = ['ERP','MES','HISTORIAN','DMZ','SCADA','PLC','REMOTE-IO','ROBOT'];
-const ops=['vendor','wire','breaker','overload','plc','network','robotFault','robotReset','robotRate','purchase','receivePO','sales','reserve','invoice','workOrder','completeWork','evidence','gate','change','latency'];
+const ops=['vendor','wire','breaker','overload','plc','network','robotFault','robotGate','robotReset','robotRate','purchase','receivePO','sales','reserve','invoice','workOrder','completeWork','evidence','gate','change','latency'];
 const positive=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
 const item=(list,id)=>list.find(x=>x.id===id);
 export function createSystems(stages){return {
@@ -21,7 +21,7 @@ export function createSystems(stages){return {
  cabinets:stages.map((st,i)=>({id:`CP-${String(i+1).padStart(2,'0')}`,stage:st.id,breaker:true,overload:false,volts:24,currentA:0})),
  wires:stages.flatMap((st,i)=>['READY','PE','OL','RUN','SPEED','TEMP'].map((signal,j)=>({id:`W${i+1}-${j+1}`,stage:st.id,cabinet:`CP-${String(i+1).padStart(2,'0')}`,terminal:`X${i+1}:${j+1}`,device:`${st.tag}.${signal}`,address:`${j<3?'I':j===3?'Q':j===4?'AQ':'AI'}${i}.${j}`,signal,broken:false,value:0,quality:'GOOD'}))),
  io:{}, nodes:NODES.map(id=>({id,online:true})),
- robots:[{id:'case',name:'Case packing robot',stage:'pack',cycleS:2,payloadKg:5,parallel:4,toolKg:1,reachM:0.8,progress:0,cycles:0,handledKg:0,fault:false,latched:false,status:'READY',position:[0,0,0],grip:false},{id:'pallet',name:'Palletising robot',stage:'pallet',cycleS:3,payloadKg:30,parallel:1,toolKg:20,reachM:2.4,progress:0,cycles:0,handledKg:0,fault:false,latched:false,status:'READY',position:[0,0,0],grip:false}],
+ robots:[{id:'case',name:'Case packing robot',stage:'pack',cycleS:2,payloadKg:5,parallel:4,toolKg:1,reachM:0.8,progress:0,cycles:0,handledKg:0,fault:false,gateOpen:false,latched:false,status:'READY',position:[0,0,0],grip:false},{id:'pallet',name:'Palletising robot',stage:'pallet',cycleS:3,payloadKg:30,parallel:1,toolKg:20,reachM:2.4,progress:0,cycles:0,handledKg:0,fault:false,gateOpen:false,latched:false,status:'READY',position:[0,0,0],grip:false}],
  warehouse:{auto:true,amrs:[{id:'AMR-01',battery:100,status:'IDLE',remaining:0,mission:null},{id:'AMR-02',battery:100,status:'IDLE',remaining:0,mission:null}],missions:[],accountedKg:0,storedKg:0,capacityPallets:500},
  purchases:[],sales:[],workOrders:[],spares:10,evidence:[],gates:GATES.map(([id])=>({id,status:'OPEN',note:''})),changes:[],downtimeS:0,cost:{rawAUD:0,energyAUD:0,packagingAUD:0,totalAUD:0},next:0,events:[]
 };}
@@ -30,14 +30,14 @@ export function systemReason(s,p){
  if(!['instructor','engineer','maintenance'].includes(s.role))return 'Select Instructor, Engineer or Maintenance for the engineering simulator';
  const stopped=['STOPPED','HELD','TRIPPED'].includes(s.mode);
  switch(p.op){
- case 'vendor':return VENDORS[p.id]&&stopped?null:'Hold or stop the line before changing the reference vendor';
+ case 'vendor':return Object.hasOwn(VENDORS,p.id)&&stopped?null:'Hold or stop the line before changing the reference vendor';
  case 'wire':return item(x.wires,p.id)?null:'Unknown wire';
  case 'breaker':case 'overload':return item(x.cabinets,p.id)?null:'Unknown cabinet';
  case 'plc':return null;
  case 'network':return item(x.nodes,p.id)?null:'Unknown network node';
  case 'latency':return positive(p.value,0,1000)?null:'Latency must be 0-1,000 ms';
- case 'robotFault':return item(x.robots,p.id)?null:'Unknown robot';
- case 'robotReset':{const r=item(x.robots,p.id);return !r?'Unknown robot':r.fault?'Remove gripper fault before reset':s.mode==='TRIPPED'?'Recover the plant trip before robot reset':!x.nodes.find(n=>n.id==='ROBOT').online?'Restore robot communication before reset':!stopped?'Hold or stop the line before resetting the robot':!r.latched?'Robot is not latched':null;}
+ case 'robotGate':case 'robotFault':return item(x.robots,p.id)?null:'Unknown robot';
+ case 'robotReset':{const r=item(x.robots,p.id);return !r?'Unknown robot':r.fault||r.gateOpen?'Remove gripper fault and close cell gate before reset':s.mode==='TRIPPED'?'Recover the plant trip before robot reset':!x.nodes.find(n=>n.id==='ROBOT').online?'Restore robot communication before reset':!stopped?'Hold or stop the line before resetting the robot':!r.latched?'Robot is not latched':null;}
  case 'robotRate':return item(x.robots,p.id)&&positive(p.value,0.5,20)&&stopped?null:'Hold or stop, then set a cycle time from 0.5 to 20 s';
  case 'purchase':return positive(p.kg,1000,50000)&&positive(p.price,0.01,10)&&x.purchases.length<100?null:'Purchase requires 1,000-50,000 kg and AUD 0.01-10/kg; limit 100';
  case 'receivePO':return item(x.purchases,p.id)?.status==='ORDERED'?null:'Purchase is missing or already received';
@@ -61,7 +61,8 @@ export function applySystem(s,p){
  case 'plc':x.plcRun=!x.plcRun;break;
  case 'network':{const n=item(x.nodes,p.id);n.online=!n.online;break;}
  case 'latency':x.latencyMs=p.value;break;
- case 'robotFault':{const r=item(x.robots,p.id);r.fault=!r.fault;if(r.fault)r.latched=true;break;}
+ case 'robotGate':{const r=item(x.robots,p.id);r.gateOpen=!r.gateOpen;if(r.gateOpen)r.latched=true;break;}
+ case 'robotFault':{const r=item(x.robots,p.id);r.fault=!r.fault;if(r.fault||r.gateOpen)r.latched=true;break;}
  case 'robotReset':{const r=item(x.robots,p.id);r.latched=false;r.progress=0;r.grip=false;break;}
  case 'robotRate':item(x.robots,p.id).cycleS=p.value;break;
  case 'purchase':x.purchases.push({id:id('PO'),kg:p.kg,price:p.price,status:'ORDERED'});break;
@@ -91,7 +92,7 @@ export function scanSystems(s,dt=1){
  for(const w of wires){w.quality=w.broken?'BAD':network?'GOOD':'STALE';w.value=w.broken?0:w.signal==='TEMP'?(s.loops[st.id]?.measured??20):w.signal==='SPEED'?(output?st.speed*100:0):w.signal==='RUN'?Number(output):w.signal==='PE'?Number(input):Number(ready);}
  }
  for(const r of x.robots){
- const st=s.stages.find(a=>a.id===r.stage);if(r.fault)r.latched=true;
+ const st=s.stages.find(a=>a.id===r.stage);if(r.fault||r.gateOpen)r.latched=true;
  const enabled=x.io[r.stage].output&&online('ROBOT')&&!r.latched;
  r.status=r.latched?'FAULT':!online('ROBOT')?'OFFLINE':!enabled?'STOPPED':st.massKg<0.01?'STARVED':'READY';
  // Robot paths are task-space teaching trajectories, not vendor kinematics.
