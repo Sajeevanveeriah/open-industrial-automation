@@ -9,7 +9,7 @@ const {chromium}=await import(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES ? p
 let server;
 const root=resolve('dist');
 const base=process.env.OIA_BASE_URL?.replace(/\/$/,'')||'http://127.0.0.1:4185';
-if(!process.env.OIA_BASE_URL){server=createServer(async(req,res)=>{try{const path=decodeURIComponent(new URL(req.url,base).pathname);const file=resolve(root,'.'+path+(path.endsWith('/')?'index.html':''));if(!file.startsWith(root+sep))throw Error();const mime={'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.css':'text/css'};res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.writeHead(404);res.end('Not found');}});await new Promise(r=>server.listen(4185,'127.0.0.1',r));}
+if(!process.env.OIA_BASE_URL){server=createServer(async(req,res)=>{try{const path=decodeURIComponent(new URL(req.url,base).pathname);const file=resolve(root,'.'+path+(path.endsWith('/')?'index.html':''));if(!file.startsWith(root+sep))throw Error();const mime={'.html':'text/html','.mjs':'text/javascript','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'};res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.writeHead(404);res.end('Not found');}});await new Promise(r=>server.listen(4185,'127.0.0.1',r));}
 let browser,page;
 try{
  browser=await chromium.launch();page=await browser.newPage({viewport:{width:1440,height:1000},bypassCSP:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -90,6 +90,12 @@ try{
  await openRoute('OT/IT architecture');await page.locator('[data-sys="network"][data-id="REMOTE-IO"]').click();await click('+1 min');assert.equal((await exported()).systems.io.pack.output,false);await page.locator('[data-sys="network"][data-id="REMOTE-IO"]').click();
  await openRoute('Project lifecycle');assert.equal(await page.locator('[data-sys="gate"][data-id="commercial"]').isEnabled(),false);await page.getByLabel('Evidence or review note').fill('Synthetic business case reviewed');await click('Record evidence');await page.locator('[data-sys="gate"][data-id="commercial"]').click();assert.equal((await exported()).systems.gates[0].status,'ACCEPTED');await page.getByLabel('Change and reason for reassessment').fill('Increase model design capacity');await click('Open change review');assert.equal((await exported()).systems.gates[0].status,'OPEN');
  await openRoute('Cabinets & wiring');for(const label of ['Export wiring CSV','Export cabinet BOM']){const pending=page.waitForEvent('download');await click(label);assert.ok((await readFile(await(await pending).path())).length>500);}
+
+ // Published drawings must remain documents under the migration worker.
+ await page.locator('summary').filter({hasText:'Drawings, schedules and engineering specification'}).click();
+ await page.evaluate(async()=>{await navigator.serviceWorker.ready;});
+ const docLinks=await page.locator('main a[href*="engineering-docs/"]').evaluateAll(links=>links.map(a=>a.href));assert.equal(docLinks.length,7);
+ const docPage=await page.context().newPage();try{for(const href of docLinks){if(href.endsWith('.svg')){await docPage.goto(href);assert.equal(docPage.url(),href);await docPage.locator('svg[role="img"]').waitFor();assert.match(await docPage.locator('svg desc').textContent(),/Not for construction/);}else{const response=await page.request.get(href);assert.equal(response.status(),200);assert.ok((await response.body()).length>500);}}}finally{await docPage.close();}
 
  // Saved run and import paths are checked through exported user-visible data.
  await openRoute('Engineering reference');await click('Save in this browser');const saved=await exported();await click('Reset run');await click('Keep current run');assert.equal((await exported()).time,saved.time);await click('Reset run');await click('Replace run');assert.equal((await exported()).time,0);await click('Load saved run');await click('Replace run');assert.equal((await exported()).time,saved.time);
