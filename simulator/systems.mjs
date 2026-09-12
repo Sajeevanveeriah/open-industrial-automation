@@ -80,6 +80,7 @@ export function applySystem(s,p){
  }
  x.events.push({at:s.time,operation:p.op,target:p.id||'',description:p.note||''});if(x.events.length>300)x.events.shift();scanSystems(s,0);
 }
+function updateRobotPose(r,enabled){const t=r.progress;r.grip=enabled&&t>=0.2&&t<0.8;r.position=[Math.sin(t*Math.PI*2)*Math.min(0.6,r.reachM),0.6+Math.sin(t*Math.PI)*0.8,t<0.5?0:0.8];}
 export function scanSystems(s,dt=1){
  const x=s.systems,online=id=>item(x.nodes,id).online;
  x.scans+=Math.round(dt*1000/x.scanMs);x.watchdog=x.latencyMs>500||!online('PLC');
@@ -99,14 +100,14 @@ export function scanSystems(s,dt=1){
  r.status=r.latched?'FAULT':!online('ROBOT')?'OFFLINE':!enabled?'STOPPED':st.massKg<0.01?'STARVED':'READY';
  // Robot paths are task-space teaching trajectories, not vendor kinematics.
  if(enabled&&st.flowKgS>0)r.status='CYCLING';
- const t=r.progress;r.grip=enabled&&t>=0.2&&t<0.8;r.position=[Math.sin(t*Math.PI*2)*Math.min(0.6,r.reachM),0.6+Math.sin(t*Math.PI)*0.8,t<0.5?0:0.8];
+ updateRobotPose(r,enabled);
  }
 }
 export function systemBlock(s,stage){const x=s.systems,io=x.io[stage];if(!io?.output)return io?.reason||'PLC NOT SCANNED';const r=x.robots.find(a=>a.stage===stage);if(r?.latched||r?.fault)return 'ROBOT FAULT';if(r&&!item(x.nodes,'ROBOT').online)return 'ROBOT NETWORK';if(stage==='pallet'&&x.warehouse.missions.filter(a=>a.status!=='STORED').length>=4)return 'PALLET BUFFER';return null;}
 export function systemCapacity(s,stage){const r=s.systems.robots.find(a=>a.stage===stage);return r?r.payloadKg*r.parallel/r.cycleS:Infinity;}
 export function advanceSystems(s){
  const x=s.systems;
- for(const r of x.robots){const flow=s.stages.find(st=>st.id===r.stage).flowKgS;if(flow>0){r.handledKg+=flow;r.progress+=1/r.cycleS;while(r.progress>=1){r.cycles++;r.progress--;}r.status='CYCLING';}}
+ for(const r of x.robots){const flow=s.stages.find(st=>st.id===r.stage).flowKgS;if(flow>0){r.handledKg+=flow;r.progress+=1/r.cycleS;while(r.progress>=1){r.cycles++;r.progress--;}r.status='CYCLING';updateRobotPose(r,true);}}
  const w=x.warehouse,total=s.finishedLots.reduce((n,l)=>n+l.totalKg,0);
  while(total-w.accountedKg>=600&&w.missions.length<500){const seq=w.missions.length+1;w.missions.push({id:`PAL-${seq}`,kg:600,status:'WAITING',location:`CS-${String(seq).padStart(3,'0')}`});w.accountedKg+=600;}
  // Single shared aisle reservation avoids simultaneous robot occupancy.

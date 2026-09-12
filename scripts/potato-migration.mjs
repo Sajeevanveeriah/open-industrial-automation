@@ -13,7 +13,7 @@ const server=createServer(async(req,res)=>{
   const path=new URL(req.url,origin).pathname;
   res.setHeader('Cache-Control','no-store');
   if(!path.startsWith(prefix)){res.end('Neighbouring project');return;}
-  res.setHeader('Content-Type',path.endsWith('.js')||path.endsWith('.mjs')?'text/javascript':path.endsWith('.css')?'text/css':'text/html');
+  res.setHeader('Content-Type',path.endsWith('.js')||path.endsWith('.mjs')?'text/javascript':path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'text/html');
   if(!deployed){
    if(path.endsWith('sw.js')){res.end(`const entry=new URL('./',self.location).href;self.addEventListener('install',e=>e.waitUntil(${cacheLegacy?"caches.open('oia-suite-v2.2').then(c=>c.add(entry))":"Promise.resolve()"}.then(()=>self.skipWaiting())));self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request))));`);return;}
    res.end('<!doctype html><title>Old water application</title><h1>TK-101 MIX TANK</h1>');return;
@@ -41,7 +41,9 @@ try{
   assert.equal(await page.getByText('TK-101 MIX TANK',{exact:true}).count(),0);
   const retained=await page.evaluate(async()=>({neighbour:await(await caches.match('/neighbour/keep')).text(),own:(await(await caches.open('oia-suite-v2.2')).keys()).filter(r=>new URL(r.url).pathname.startsWith('/open-industrial-automation/')).length,saved:localStorage.getItem('potato-sim-sentinel')}));
   assert.deepEqual(retained,{neighbour:'preserve',own:0,saved:'preserve'});
+  const drawing=origin+prefix+'engineering-docs/20260912-Cabinet-Terminal-Drawing-Rev00.svg';await page.goto(drawing);assert.equal(page.url(),drawing);await page.locator('svg[role="img"]').waitFor();
   await context.close();
  }
  console.log('PASS: root, nested cached and cacheless older applications automatically become potato without manual reload; neighbouring cache and saved data preserved.');
 }finally{await browser?.close();await new Promise(r=>server.close(r));}
+
