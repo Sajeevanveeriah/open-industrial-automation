@@ -20,5 +20,6 @@ jobs:
         with:
           node-version: 24
       - name: Deterministic model and domain tests
-        run: node --test --experimental-test-coverage tests/potato-engine.test.mjs
+        run: node --test --experimental-test-coverage tests/potato-engine.test.mjs tests/potato-systems.test.mjs
+
 
