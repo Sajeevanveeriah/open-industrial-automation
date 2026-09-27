@@ -1,18 +1,19 @@
 <!doctype html>
 <html lang="en-AU">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Independent potato-processing automation simulation for engineering review. Synthetic process, controls, MES, quality and utilities.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
-<meta name="theme-color" content="#f4f4ee"><title>Potato Plant Digital Twin | Open Industrial Automation</title>
-<link rel="icon" href="data:,"><link rel="stylesheet" href="./styles.css?v=potato-systems-9">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="theme-color" content="#ffffff"><meta name="color-scheme" content="light dark"><title>Potato Plant Digital Twin | Open Industrial Automation</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css?v=potato-systems-10">
 </head>
 <body>
 <a class="skip" href="#workspace">Skip to workspace</a>
 <div id="app"></div>
 <div id="notice" role="status" aria-live="polite"></div>
 <dialog id="replace-dialog" aria-labelledby="replace-title"><h2 id="replace-title">Replace the current run?</h2><p>Export or save first if you need this run. This replaces the simulation in this tab only.</p><div class="actions"><button id="cancel-replace">Keep current run</button><button id="confirm-replace" class="primary">Replace run</button></div></dialog>
+<dialog id="palette" aria-label="Search and commands"><div class="palette-search"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 100 14 7 7 0 000-14zM20 20l-4-4"/></svg><input id="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-results" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search workspaces, equipment, commands and scenarios" aria-label="Search workspaces, equipment, commands and scenarios"></div><ul id="palette-results" role="listbox" aria-label="Results"></ul><div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> Move</span><span><kbd>Enter</kbd> Run</span><span><kbd>Esc</kbd> Close</span></div></dialog>
+<dialog id="shortcuts" aria-labelledby="shortcuts-title"><h2 id="shortcuts-title">Keyboard shortcuts</h2><p>Shortcuts apply when focus is outside a text field. Plant commands are never bound to single keys.</p><dl class="shortcut-list"><dt><kbd>Ctrl</kbd> <kbd>K</kbd> or <kbd>/</kbd></dt><dd>Search workspaces, equipment, commands and scenarios</dd><dt><kbd>Space</kbd></dt><dd>Play or pause the simulation clock</dd><dt><kbd>.</kbd></dt><dd>Advance one simulated minute</dd><dt><kbd>Shift</kbd> <kbd>.</kbd></dt><dd>Advance ten simulated minutes</dd><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Slower or faster playback</dd><dt><kbd>T</kbd></dt><dd>Switch light and dark theme</dd><dt><kbd>?</kbd></dt><dd>Show this list</dd><dt><kbd>Esc</kbd></dt><dd>Close a dialog or the navigation drawer</dd></dl><div class="actions"><button id="close-shortcuts" class="primary">Done</button></div></dialog>
 <input id="import-file" type="file" accept="application/json,.json" hidden>
-<script type="module" src="./app.mjs?v=potato-systems-9"></script>
+<script type="module" src="./app.mjs?v=potato-systems-10"></script>
 </body></html>
-
