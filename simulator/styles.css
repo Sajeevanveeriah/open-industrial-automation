@@ -433,7 +433,7 @@ dialog[open]{animation:dialog-in .18s var(--ease)}
   .role-picker label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 }
 @media (max-width:1150px){
-  :root{--rail:220px}
+  :root{--rail:220px;--gutter:20px}
   main{padding:22px 20px}
   .top{padding:10px 20px}
   .breadcrumb .crumb-root{display:none}
@@ -453,7 +453,7 @@ dialog[open]{animation:dialog-in .18s var(--ease)}
   .metric strong{font-size:24px}
 }
 @media (max-width:900px){
-  :root{--rail:0px;--top:56px}
+  :root{--rail:0px;--top:56px;--top-gutter:14px}
   .shell,.shell.collapsed{--rail:0px;grid-template-columns:minmax(0,1fr)}
   .rail{position:fixed;left:0;top:0;bottom:0;height:100%;width:min(300px,86vw);transform:translateX(-102%);visibility:hidden;transition:transform .24s var(--ease),visibility 0s linear .24s;box-shadow:var(--shadow-lg);z-index:70}
   .shell.menu-open .rail{transform:none;visibility:visible;transition:transform .24s var(--ease)}
@@ -481,6 +481,7 @@ dialog[open]{animation:dialog-in .18s var(--ease)}
   .replay-bar{padding:10px 16px}
 }
 @media (max-width:600px){
+  :root{--gutter:14px}
   body{font-size:14px}
   main{padding:18px 14px 24px}
   .top-right{gap:4px}
@@ -558,7 +559,9 @@ dialog[open]{animation:dialog-in .18s var(--ease)}
 /* Notched and installed displays: keep the header, rail and control dock clear of cut-outs. Last so it survives responsive padding. */
 .control-dock{padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .top{padding-top:max(8px,env(safe-area-inset-top))}
-.rail{padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+.rail{padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom));padding-left:calc(12px + env(safe-area-inset-left))}
+.top{padding-left:calc(var(--top-gutter,var(--gutter,28px)) + env(safe-area-inset-left));padding-right:calc(var(--top-gutter,var(--gutter,28px)) + env(safe-area-inset-right))}
+main{padding-left:calc(var(--gutter,28px) + env(safe-area-inset-left));padding-right:calc(var(--gutter,28px) + env(safe-area-inset-right))}
 @media print{
   .rail,.top,.control-dock,.heading .actions,#notice,.skip,.view-tabs,.viewer-toolbar,.viewer-caption,.alarm-banner,.scrim{display:none!important}
   .shell{display:block}
