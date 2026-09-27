@@ -1,0 +1,11 @@
+{
+  "name": "Potato Plant Digital Twin",
+  "short_name": "Potato Twin",
+  "description": "Independent potato-processing automation simulation for engineering review.",
+  "start_url": "./#plant",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#0b5cc0",
+  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}

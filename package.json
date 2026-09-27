@@ -1,6 +1,6 @@
 {
   "name": "open-industrial-automation",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "Potato processing plant digital twin simulation for independent Dooen engineering review.",
   "type": "module",
   "license": "Apache-2.0",

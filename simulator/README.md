@@ -28,7 +28,7 @@ Use Node.js 24 for build and tests. `npm run build` publishes only the potato si
 - Eighteen instructor fault types, latched protective trips, acknowledgement and explicit recovery.
 - Isolated maintenance, consumable replenishment and separate wet/dry sanitation phases.
 - Emulated gateway stale data, rejected supervisory writes and idempotent ERP outbox delivery.
-- Ten responsive workspaces, light/dark themes, keyboard controls, explicit browser save/load and validated import.
+- Fifteen responsive workspaces in four groups, light/dark themes that follow the system, a command palette (`Ctrl K`), keyboard shortcuts (`?`), explicit browser save/load and validated import.
 
 ## Calculation and model limits
 

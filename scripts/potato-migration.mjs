@@ -25,7 +25,7 @@ const server=createServer(async(req,res)=>{
 await new Promise(r=>server.listen(4186,'127.0.0.1',r));
 let browser;
 try{
- browser=await chromium.launch();
+ browser=await chromium.launch(process.env.OIA_CHROMIUM?{executablePath:process.env.OIA_CHROMIUM}:{});
  for(const [scope,cached] of [['',true], ['suite/',true], ['',false]]){
   cacheLegacy=cached;
   deployed=false;const context=await browser.newContext();const page=await context.newPage();
