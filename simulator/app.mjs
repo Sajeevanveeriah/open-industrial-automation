@@ -17,7 +17,8 @@ let plantMode='model',overlay='status',showLabels=true,showServices=true,spatial
 const PREFS_KEY='potato-sim-ui-v1';
 const prefs=(()=>{try{return JSON.parse(localStorage.getItem(PREFS_KEY))||{};}catch{return {};}})();
 function savePrefs(){try{localStorage.setItem(PREFS_KEY,JSON.stringify({theme:document.body.dataset.theme,collapsed,rate,overlay,showLabels,showServices}));}catch{}}
-function applyTheme(theme){document.body.dataset.theme=theme;const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=theme==='dark'?'#1a1d21':'#ffffff';}
+// Switch themes in one step: transitions would briefly pair old text colours with new surfaces.
+function applyTheme(theme){const root=document.documentElement;root.classList.add('theme-switching');requestAnimationFrame(()=>requestAnimationFrame(()=>root.classList.remove('theme-switching')));document.body.dataset.theme=theme;const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=theme==='dark'?'#1a1d21':'#ffffff';}
 {const systemDark=(()=>{try{return matchMedia('(prefers-color-scheme: dark)').matches;}catch{return false;}})();applyTheme(['light','dark'].includes(prefs.theme)?prefs.theme:systemDark?'dark':'light');
  collapsed=prefs.collapsed===true;if([1,10,30,60,120].includes(prefs.rate))rate=prefs.rate;if(['status','flow','inventory','temperature'].includes(prefs.overlay))overlay=prefs.overlay;if(typeof prefs.showLabels==='boolean')showLabels=prefs.showLabels;if(typeof prefs.showServices==='boolean')showServices=prefs.showServices;}
 const state=()=>lens||plant;
