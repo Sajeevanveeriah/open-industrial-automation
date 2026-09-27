@@ -555,6 +555,10 @@ dialog[open]{animation:dialog-in .18s var(--ease)}
   .cabinet-detail{padding:0 12px}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+/* Notched and installed displays: keep the header, rail and control dock clear of cut-outs. Last so it survives responsive padding. */
+.control-dock{padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.top{padding-top:max(8px,env(safe-area-inset-top))}
+.rail{padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
 @media print{
   .rail,.top,.control-dock,.heading .actions,#notice,.skip,.view-tabs,.viewer-toolbar,.viewer-caption,.alarm-banner,.scrim{display:none!important}
   .shell{display:block}
