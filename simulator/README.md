@@ -30,6 +30,16 @@ Use Node.js 24 for build and tests. `npm run build` publishes only the potato si
 - Emulated gateway stale data, rejected supervisory writes and idempotent ERP outbox delivery.
 - Fifteen responsive workspaces in four groups, light/dark themes that follow the system, a command palette (`Ctrl K`), keyboard shortcuts (`?`), explicit browser save/load and validated import.
 
+## Recovery and saved-run compatibility
+
+Drain keeps raw feed disabled until process equipment is empty and pending AMR deliveries have reached storage, then stops the plant. Stop and Hold pause both process equipment and warehouse vehicle travel. AMR missions retain their load, aisle reservation and remaining travel time until the plant returns to RUNNING or DRAINING.
+
+A trip during sanitation marks the cycle interrupted. Remove the trip cause and reset; the plant returns to STOPPED. Restart sanitation in Maintenance from its first phase before starting production. Resetting a trip on an idle plant also returns to STOPPED; it does not create a campaign.
+
+Drain checks controller, utility and isolation permissives. Restarting a retained drain does not require fresh released raw stock and never resumes raw feed. A retained campaign must finish draining before its recipe can change. Raw-lot recalls persist: routine sample approval cannot return recalled stock to intake.
+
+Model version 3.0.3 changes these deterministic behaviours. Saved runs from 3.0.2 and earlier are rejected rather than replayed with different results. Keep older exports with the matching model revision; this update does not delete browser-saved data.
+
 ## Calculation and model limits
 
 The published 250,000 t/year figure describes raw potato intake. The 30,000 kg/h demonstration feed is an independent assumption. Do not infer actual hourly nameplate throughput, vendors, layout or recipes from this model.

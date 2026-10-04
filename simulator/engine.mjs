@@ -9,7 +9,7 @@ const stageFor = (s,id) => s.stages.find(x => x.id === id);
 const faultFor = id => FAULTS.find(x => x.id === id);
 const has = (s,id) => s.faults.includes(id);
 const wip = s => s.stages.reduce((n,x) => n + x.massKg,0);
-const rawAvailable = s => s.rawLots.find(x => x.grade === 'RELEASED' && x.kg > 1e-6);
+const rawAvailable = s => s.rawLots.find(x => x.grade === 'RELEASED' && !x.recalled && x.kg > 1e-6);
 const queuedOrder = s => s.orders.find(x => x.status === 'QUEUED' && x.recipe === s.activeRecipe);
 const activeOrder = s => s.orders.find(x => x.id === s.activeOrderId);
 const thermalReady = s => Object.values(s.loops).every(l=>Math.abs(l.pv-l.sp)<4);
@@ -58,6 +58,11 @@ function alarm(s,code,condition,unit,severity,message) {
 function setMode(s,next,reason) {
   if (s.mode === next) return;
   const previous = s.mode;
+  if(previous==='CLEANING'&&s.clean.state==='IN_PROGRESS'){
+    s.clean.restartRequired=true;s.clean.state='DIRTY';
+    s.clean.reason=`Sanitation interrupted by ${next}; restart sanitation from the beginning`;
+    s.clean.history.push({at:s.time,phase:CLEAN_PHASES[s.clean.phase].name,result:'INTERRUPTED'});
+  }
   s.mode = next;
   if(['STOPPED','TRIPPED'].includes(next)){for(const loop of Object.values(s.loops))loop.output=0;s.utilities.thermalKW=0;s.utilities.powerKW=has(s,'power-loss')?0:120;}
   if(!['RUNNING','DRAINING'].includes(next)){for(const st of s.stages){st.flowKgS=0;st.status=st.isolated?'ISOLATED':next;}s.recent.outputKgH=0;}
@@ -141,17 +146,25 @@ function validateCommand(s,type,p) {
     case 'start': {
       if (s.mode !== 'STOPPED') return 'Start requires STOPPED';
       if (s.clean.restartRequired || (!activeOrder(s) && s.clean.state !== 'CLEAN')) return 'Complete line sanitation before a new campaign';
-      const bad = permissives(s).filter(x => !x.ok);
+      const draining=Boolean(activeOrder(s))&&s.resumeTarget==='DRAINING';
+      const bad = permissives(s).filter(x => !x.ok && !(draining&&x.id==='raw'));
       return bad.length ? bad.map(x => x.reason).join('; ') : null;
     }
     case 'stop': return ['RUNNING','STARTING','HELD','DRAINING','CLEANING'].includes(s.mode) ? null : s.mode==='TRIPPED' ? 'Remove the trip cause and reset the trip before stopping' : 'The line is already stopped';
     case 'hold': return ['RUNNING','STARTING','DRAINING'].includes(s.mode) ? null : 'Hold requires a moving or starting line';
     case 'resume': {
       if (s.mode !== 'HELD') return 'Resume requires HELD, not a latched trip';
+      if (s.clean.restartRequired) return 'Complete interrupted sanitation before resuming production';
+      if (!activeOrder(s)) return 'No retained campaign; stop and start a queued campaign';
       const bad = permissives(s).filter(x => !x.ok && !['raw','order'].includes(x.id));
       return bad.length ? bad.map(x => x.reason).join('; ') : null;
     }
-    case 'drain': return (['RUNNING','HELD','STARTING'].includes(s.mode) || (s.mode==='STOPPED' && activeOrder(s))) ? null : 'Drain requires an active campaign or retained work in process';
+    case 'drain': {
+      if (!(['RUNNING','HELD','STARTING'].includes(s.mode) || (s.mode==='STOPPED' && activeOrder(s)))) return 'Drain requires an active campaign or retained work in process';
+      if (s.clean.restartRequired) return 'Complete interrupted sanitation before draining';
+      const bad=permissives(s).filter(x=>!x.ok&&!['raw','order'].includes(x.id));
+      return bad.length ? bad.map(x=>x.reason).join('; ') : null;
+    }
     case 'estop': return has(s,'estop') ? 'Emergency stop is already active' : null;
     case 'releaseEstop': return has(s,'estop') ? null : 'The simulated E-stop is already released';
     case 'resetTrip': return s.mode !== 'TRIPPED' ? 'No latched trip to reset' : s.faults.some(id => faultFor(id)?.severity === 'TRIP') || s.loops.fry.pv > 200 ? 'Remove every trip cause and allow temperature to recover first' : null;
@@ -161,9 +174,9 @@ function validateCommand(s,type,p) {
     case 'setpoint': {const bounds={blanch:[60,95],fry:[155,195],freeze:[-45,-18]};return Object.hasOwn(bounds,p.id) && finite(p.value,...bounds[p.id]) ? null : 'Setpoint is outside its finite model range';}
     case 'tune': return Object.hasOwn(s.loops,p.id) && finite(p.kp,0,20) && finite(p.ki,0,1) ? null : 'PI gains require Kp 0-20 and Ki 0-1';
     case 'speed': return st && finite(p.value,0.5,1.2) ? null : 'Select equipment and a speed multiplier of 0.5-1.2';
-    case 'selectRecipe': return !recipeFor(p.id) ? 'Unknown recipe' : s.mode !== 'STOPPED' || wip(s)>1e-6 ? 'Recipe changes require stopped, empty equipment' : null;
+    case 'selectRecipe': return !recipeFor(p.id) ? 'Unknown recipe' : s.mode !== 'STOPPED' || wip(s)>1e-6 || activeOrder(s) ? 'Recipe changes require stopped, empty equipment with no retained campaign; drain it first' : null;
     case 'receive': return finite(p.kg,1000,50000) && finite(p.dryMatter,10,35) && finite(p.sugar,0,2) && typeof p.source === 'string' && p.source.trim().length > 0 && p.source.length <= 100 ? null : 'Receipt requires 1,000-50,000 kg, 10-35% dry matter, 0-2% sugar and a source label';
-    case 'approveRaw': return !raw || raw.grade !== 'HOLD' ? 'Select a held raw lot' : raw.dryMatter < 18 || raw.dryMatter > 25 || raw.sugar > 0.35 ? 'Raw sample fails the illustrative specification' : null;
+    case 'approveRaw': return !raw || raw.grade !== 'HOLD' ? 'Select a held raw lot' : raw.recalled ? 'Recalled raw stock cannot be approved; reject it or complete a separately engineered investigation' : raw.dryMatter < 18 || raw.dryMatter > 25 || raw.sugar > 0.35 ? 'Raw sample fails the illustrative specification' : null;
     case 'rejectRaw': return raw && raw.kg > 0 && raw.grade === 'HOLD' ? null : 'Only a held raw lot with remaining stock can be rejected';
     case 'order': return recipeFor(p.recipe) && finite(p.rawKg,1000,200000) && s.orders.length < 100 ? null : 'Campaign requires a known recipe and 1,000-200,000 kg raw allocation; maximum 100 orders';
     case 'sample': return lot && lot.pendingKg > 0 ? null : 'Select finished stock awaiting a quality decision';
@@ -206,7 +219,6 @@ export function act(s,type,payload = {}) {
     }
     case 'stop':
       s.resumeTarget=s.mode==='DRAINING'?'DRAINING':s.mode==='STARTING'?s.startTarget||'RUNNING':s.mode==='HELD'?s.resumeTarget||'RUNNING':'RUNNING';
-      if(s.mode==='CLEANING'){s.clean.restartRequired=true;s.clean.state='DIRTY';s.clean.reason='Sanitation interrupted by Stop; restart sanitation from the beginning';s.clean.history.push({at:s.time,phase:CLEAN_PHASES[s.clean.phase].name,result:'INTERRUPTED'});}
       setMode(s,'STOPPED','Operator stop; campaign and material retained');
       for(const loop of Object.values(s.loops))loop.output=0;
       s.utilities.thermalKW=0;s.utilities.powerKW=has(s,'power-loss')?0:120;break;
@@ -221,7 +233,7 @@ export function act(s,type,payload = {}) {
       setMode(s,thermalReady(s)?'DRAINING':'STARTING','Raw feed disabled; warm if necessary and drain retained material');break;
     case 'estop': s.faults.push('estop');setMode(s,'TRIPPED','Emergency stop latched');quarantineWIP(s,'Protective shutdown review hold');break;
     case 'releaseEstop': s.faults=s.faults.filter(id=>id!=='estop');break;
-    case 'resetTrip': setMode(s,'HELD','Trip reset; restart remains manual');break;
+    case 'resetTrip': setMode(s,s.clean.restartRequired||!activeOrder(s)?'STOPPED':'HELD','Trip reset; restart remains manual');break;
     case 'fault':
       if(p.id==='comms-loss')s.gatewaySnapshot=liveTags(s);
       s.faults.push(p.id);
@@ -259,7 +271,7 @@ export function act(s,type,payload = {}) {
       s.shipments.push(shipment);transmit(s,'DISPATCH',shipment);break;
     }
     case 'recall': {
-      const r=s.rawLots.find(x=>x.id===p.id);r.grade='HOLD';
+      const r=s.rawLots.find(x=>x.id===p.id);r.grade='HOLD';r.recalled=true;
       for(const x of s.finishedLots.filter(x=>x.rawLotId===p.id)){x.recalled=true;x.pendingKg+=x.releasedKg;x.releasedKg=0;if(!x.holdReasons.includes('Raw-lot recall'))x.holdReasons.push('Raw-lot recall');}
       for(const x of s.shipments.filter(x=>x.rawLotId===p.id))x.recallRequired=true;
       for(const x of s.stages)for(const item of x.queue)if(item.rawLotId===p.id&&!item.holdReasons.includes('Raw-lot recall'))item.holdReasons.push('Raw-lot recall');
@@ -428,7 +440,7 @@ function tick(s) {
   if(s.loops.fry.pv>200&&s.mode!=='TRIPPED'){setMode(s,'TRIPPED','Fryer high-high temperature');quarantineWIP(s,'Protective shutdown review hold');}
   if(s.mode==='STARTING'&&thermalReady(s))setMode(s,s.startTarget||'RUNNING','Thermal systems ready');
   for(let scan=0;scan<10;scan++)scanSystems(s,0.1);processStages(s);feed(s);sanitationStep(s);advanceSystems(s);
-  if(s.mode==='DRAINING'&&wip(s)<1e-6){
+  if(s.mode==='DRAINING'&&wip(s)<1e-6&&s.systems.warehouse.missions.every(m=>m.status==='STORED')){
     const order=activeOrder(s);if(order)order.status=order.rawFedKg>=order.targetRawKg-1e-6?'COMPLETE':'STOPPED_EARLY';
     s.activeOrderId=null;setMode(s,'STOPPED','All work in process drained');
   }
