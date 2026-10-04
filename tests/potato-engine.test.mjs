@@ -13,6 +13,66 @@ test('catalogue has unique equipment, product, fault and scenario identifiers',(
  for(const list of [STAGES,RECIPES,FAULTS,SCENARIOS]) assert.equal(new Set(list.map(x=>x.id)).size,list.length);
  assert.ok(STAGES.length>=15); assert.ok(RECIPES.length>=4); assert.ok(FAULTS.length>=15);
 });
+
+test('trip-interrupted sanitation returns to stopped and requires a complete new cleaning cycle',()=>{
+ for(const trip of ['estop','power-loss','fryer-overtemp']){
+  const s=createPlant();ok(s,'start');ok(s,'stop');ok(s,'clean');advance(s,30);
+  if(trip==='estop')ok(s,'estop');else ok(s,'fault',{id:trip});
+  assert.equal(s.clean.state,'DIRTY');assert.equal(s.clean.restartRequired,true);
+  assert.equal(s.clean.history.at(-1).result,'INTERRUPTED');
+  if(trip==='estop')ok(s,'releaseEstop');else ok(s,'clearFault',{id:trip});
+  advance(s,1200);ok(s,'resetTrip');assert.equal(s.mode,'STOPPED');
+  no(s,'resume');no(s,'start');no(s,'drain');
+  ok(s,'clean');assert.equal(s.clean.elapsed,0);advance(s,1200);
+  assert.equal(s.clean.state,'CLEAN');ok(s,'start');advance(s,600);assert.ok(s.ledger.rawFedKg>0);
+  assertPlant(s);assert.deepEqual(importRun(exportRun(s)),s);
+ }
+});
+
+test('an empty retained campaign cannot change recipe until it has been drained',()=>{
+ const s=createPlant();ok(s,'start');ok(s,'stop');
+ const before=JSON.stringify(s);no(s,'selectRecipe',{id:'coated'});assert.equal(JSON.stringify(s),before);
+ ok(s,'drain');advance(s,600);assert.equal(s.mode,'STOPPED');assert.equal(s.activeOrderId,null);
+ ok(s,'selectRecipe',{id:'coated'});ok(s,'order',{recipe:'coated',rawKg:1000});ok(s,'start');
+ advance(s,1200);assert.ok(s.stages.some(st=>st.queue.length));
+ assert.ok(s.stages.every(st=>st.queue.every(p=>p.recipe==='coated')));assertPlant(s);
+});
+
+test('a recalled raw lot cannot be approved again or consumed by a later campaign',()=>{
+ const s=createPlant(),raw=s.rawLots[0];ok(s,'recall',{id:raw.id});
+ const before=JSON.stringify(s);no(s,'approveRaw',{id:raw.id});assert.equal(JSON.stringify(s),before);
+ assert.equal(raw.recalled,true);ok(s,'start');advance(s,1200);assert.equal(raw.kg,80000);
+ assert.ok(s.stages.every(st=>st.queue.every(p=>p.rawLotId!==raw.id)));
+ ok(s,'rejectRaw',{id:raw.id});assert.equal(raw.kg,0);assertPlant(s);
+ assert.deepEqual(importRun(exportRun(s)),s);
+});
+
+test('a retained drain restarts without released raw stock and keeps feed disabled',()=>{
+ const s=operating();ok(s,'drain');advance(s,30);ok(s,'stop');
+ for(const lot of s.rawLots)ok(s,'recall',{id:lot.id});
+ const fed=s.ledger.rawFedKg;ok(s,'start');advance(s,7200);
+ assert.equal(s.mode,'STOPPED');assert.equal(s.ledger.rawFedKg,fed);assert.ok(Math.abs(summarise(s).wipKg)<1e-6);
+ assertPlant(s);assert.deepEqual(importRun(exportRun(s)),s);
+});
+
+test('Drain cannot bypass maintenance isolation or controller and utility permissives',()=>{
+ for(const blocker of ['isolation','plc','water-low']){
+  const s=operating();ok(s,'hold');
+  if(blocker==='isolation')ok(s,'isolate',{id:'pack'});
+  else if(blocker==='plc')ok(s,'system',{op:'plc'});
+  else ok(s,'fault',{id:blocker});
+  const before=JSON.stringify(s);no(s,'drain');assert.equal(JSON.stringify(s),before);
+  if(blocker==='isolation')ok(s,'unisolate',{id:'pack'});
+  else if(blocker==='plc')ok(s,'system',{op:'plc'});
+  else ok(s,'clearFault',{id:blocker});
+  ok(s,'drain');assertPlant(s);
+ }
+});
+
+test('resetting an idle trip does not create a campaign or allow Resume',()=>{
+ const s=createPlant();ok(s,'estop');ok(s,'releaseEstop');ok(s,'resetTrip');
+ assert.equal(s.mode,'STOPPED');no(s,'resume');assert.equal(s.activeOrderId,null);ok(s,'start');assertPlant(s);
+});
 test('cold start is stopped with zero fabricated throughput and conserved inventory',()=>{
  const s=createPlant(); assert.equal(s.mode,'STOPPED'); assert.equal(s.time,0); assert.equal(summarise(s).outputKgH,0); assertPlant(s);
 });

@@ -26,8 +26,45 @@ test('sales planning creates exactly one linked production campaign',()=>{const 
 test('reference vendor switches change addresses without changing material state and replay exactly',async()=>{const {signalAddress}=await import('../simulator/vendors.mjs');const s=createPlant(),before=s.ledger.rawFedKg;assert(sys(s,'vendor','rockwell').ok);assert.match(signalAddress(s.systems.vendor,s.systems.wires[0]),/^Local:/);assert(sys(s,'vendor','neutral').ok);assert.equal(signalAddress(s.systems.vendor,s.systems.wires[0]),'intake.READY');assert.equal(s.ledger.rawFedKg,before);assert.deepEqual(importRun(exportRun(s)),s);assert(!sys(s,'vendor','constructor').ok);});
 test('robot handled mass equals processed mass, including the final operating tick',()=>{const s=scenario('baseline');advance(s,30);for(const r of s.systems.robots)assert(Math.abs(r.handledKg-s.stages.find(st=>st.id===r.stage).processedKg)<1e-6);act(s,'stop');const saved=s.systems.robots.map(r=>r.handledKg);advance(s,10);assert.deepEqual(s.systems.robots.map(r=>r.handledKg),saved);});
 
-test('previous robot accounting runs are rejected instead of silently changing replay',()=>{const run=JSON.parse(exportRun(createPlant()));assert.equal(run.version,'3.0.2');for(const version of ['3.0.0','3.0.1']){run.version=version;assert.throws(()=>importRun(JSON.stringify(run)),/Unsupported or invalid simulation run/);}});
+test('older model runs are rejected instead of silently changing replay',()=>{const run=JSON.parse(exportRun(createPlant()));assert.equal(run.version,'3.0.3');for(const version of ['3.0.0','3.0.1','3.0.2']){run.version=version;assert.throws(()=>importRun(JSON.stringify(run)),/Unsupported or invalid simulation run/);}});
 
 test('robot pose and gripper match the current tick progress',()=>{const s=scenario('baseline');for(let i=0;i<4;i++){advance(s,1);for(const r of s.systems.robots){const t=r.progress;assert.equal(r.status,'CYCLING');assert.equal(r.grip,t>=0.2&&t<0.8);assert.deepEqual(r.position,[Math.sin(t*Math.PI*2)*Math.min(0.6,r.reachM),0.6+Math.sin(t*Math.PI)*0.8,t<0.5?0:0.8]);}}const restored=importRun(exportRun(s));assert.deepEqual(restored.systems.robots,s.systems.robots);});
 
 test('automatic drain completion de-energises I/O and grippers in the same tick',()=>{const s=scenario('baseline');assert(act(s,'drain').ok);for(let i=0;i<20000&&s.mode!=='STOPPED';i++)advance(s,1);assert.equal(s.mode,'STOPPED');assert(s.systems.robots.every(r=>!r.grip&&r.status==='STOPPED'));assert(Object.values(s.systems.io).every(io=>!io.output));assert(s.systems.cabinets.every(c=>c.currentA===0));});
+
+test('Hold and Stop freeze an active AMR mission until production resumes',()=>{
+ for(const command of ['hold','stop']){
+  const s=scenario('baseline');
+  for(let i=0;i<100&&!s.systems.warehouse.amrs.some(a=>a.status==='MOVING');i++)advance(s,1);
+  const amr=s.systems.warehouse.amrs.find(a=>a.status==='MOVING');assert.ok(amr);
+  assert.ok(act(s,command).ok);const before=structuredClone(amr),stored=s.systems.warehouse.storedKg;
+  advance(s,5);assert.deepEqual(amr,before);assert.equal(s.systems.warehouse.storedKg,stored);
+  assert.ok(act(s,command==='hold'?'resume':'start').ok);
+  for(let i=0;i<600&&amr.remaining===before.remaining;i++)advance(s,1);
+  assert.ok(amr.remaining<before.remaining);assertPlant(s);assert.deepEqual(importRun(exportRun(s)),s);
+ }
+});
+
+test('campaign drain completes warehouse missions before stopping',()=>{
+ for(const early of [true,false]){
+  const s=createPlant();assert.ok(act(s,'start').ok);advance(s,300);
+  if(early)assert.ok(act(s,'drain').ok);
+  let finalTravel=false,finalFeed=null;
+  for(let i=0;i<10000&&s.mode!=='STOPPED';i++){
+   if(s.mode==='DRAINING'&&Math.abs(s.stages.reduce((n,st)=>n+st.massKg,0))<1e-6&&s.systems.warehouse.missions.some(m=>m.status!=='STORED')){
+    finalTravel=true;if(finalFeed===null)finalFeed=s.ledger.rawFedKg;
+    assert.equal(s.ledger.rawFedKg,finalFeed);
+   }
+   advance(s,1);
+  }
+  assert.equal(s.mode,'STOPPED');assert.ok(finalTravel);
+  assert.equal(s.ledger.rawFedKg,finalFeed);assert.equal(s.activeOrderId,null);
+  assert.ok(s.systems.warehouse.missions.length>0);
+  assert.ok(s.systems.warehouse.missions.every(m=>m.status==='STORED'));
+  assert.ok(s.systems.warehouse.amrs.every(a=>a.status!=='MOVING'&&a.mission===null));
+  assert.equal(s.systems.warehouse.storedKg,s.systems.warehouse.accountedKg);
+  assert.ok(Object.values(s.systems.io).every(io=>!io.output));
+  assert.ok(s.systems.robots.every(r=>!r.grip&&r.status==='STOPPED'));
+  assertPlant(s);assert.deepEqual(importRun(exportRun(s)),s);
+ }
+});

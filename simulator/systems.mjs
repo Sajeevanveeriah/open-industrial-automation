@@ -113,7 +113,7 @@ export function advanceSystems(s){
  // Single shared aisle reservation avoids simultaneous robot occupancy.
  const aisleOccupied=w.amrs.some(a=>a.status==='MOVING');
  for(const a of w.amrs){
- if(a.status==='MOVING'){if(s.mode==='TRIPPED'||!item(x.nodes,'ROBOT').online)continue;a.remaining--;a.battery=Math.max(0,a.battery-0.002);if(a.remaining<=0){item(w.missions,a.mission).status='STORED';w.storedKg+=600;a.status='IDLE';a.mission=null;}}
+ if(a.status==='MOVING'){if(!['RUNNING','DRAINING'].includes(s.mode)||!item(x.nodes,'ROBOT').online)continue;a.remaining--;a.battery=Math.max(0,a.battery-0.002);if(a.remaining<=0){item(w.missions,a.mission).status='STORED';w.storedKg+=600;a.status='IDLE';a.mission=null;}}
  else if(a.battery<20||a.status==='CHARGING'){a.status='CHARGING';a.battery=Math.min(100,a.battery+0.1);if(a.battery>=95)a.status='IDLE';}
  else if(!aisleOccupied&&!w.amrs.some(b=>b.status==='MOVING')&&['RUNNING','DRAINING'].includes(s.mode)&&item(x.nodes,'ROBOT').online){const mission=w.missions.find(m=>m.status==='WAITING');if(mission){mission.status='TRANSIT';a.mission=mission.id;a.remaining=45;a.status='MOVING';}}
  }
