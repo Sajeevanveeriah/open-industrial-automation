@@ -392,4 +392,4 @@ window.addEventListener('pageshow',guard(event=>{
   if(event.persisted){restoreBench();refresh(true);persist();}
 }));
 
-document.querySelector('main').inert = false;
+document.body.inert = false;

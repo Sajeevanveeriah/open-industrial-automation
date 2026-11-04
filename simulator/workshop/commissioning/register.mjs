@@ -56,4 +56,4 @@ $('return').onclick=e=>{try{store();}catch(err){e.preventDefault();$('status').t
 $('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(reg,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='commissioning-register.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);};
 show();
 
-document.querySelector('main').inert = false;
+document.body.inert = false;

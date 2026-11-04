@@ -44,12 +44,26 @@ try {
     await button.scrollIntoViewIfNeeded();
     assert.ok(await button.evaluate(el=>{
       const rect=el.getBoundingClientRect();
-      return el.closest('main').inert && document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2)!==el;
+      return document.body.inert && document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2)!==el;
     }));
   } finally { releaseModule(); }
   await click('Load training layout');
   assert.equal(await page.locator('#tree option').count(),11);
   await page.unroute(siteEntry);
+  let releaseRegister;
+  const waiting=new Promise(resolve=>{releaseRegister=resolve;});
+  const registerEntry=/\/commissioning\/register\.mjs(?:\?|$)/;
+  await page.route(registerEntry,async route=>{await waiting;await route.continue();});
+  try {
+    await page.goto(new URL('./commissioning/index.html',url).href,{waitUntil:'commit'});
+    const back=page.locator('#return');await back.waitFor({state:'attached'});
+    assert.ok(await back.evaluate(link=>{
+      const {x,y,width,height}=link.getBoundingClientRect();
+      return document.body.inert && document.elementFromPoint(x+width/2,y+height/2)!==link;
+    }));
+  } finally {releaseRegister();}
+  await page.waitForFunction(()=>!document.body.inert);
+  await page.unroute(registerEntry);
   await page.goto(url);
   await page.getByRole('heading',{name:'Packaging workshop'}).waitFor();
   assert.equal(await page.locator('#readings strong').first().textContent(),'0.0 s');

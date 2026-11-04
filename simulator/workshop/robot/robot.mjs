@@ -80,4 +80,4 @@ for(const [name,max] of [['open',1e6],['external',4e6]])$(name).onchange=async e
 }catch(err){$('status').textContent=err.message;}e.target.value='';};
 addEventListener('pagehide',persist);fill();render();persist();
 
-document.querySelector('main').inert = false;
+document.body.inert = false;

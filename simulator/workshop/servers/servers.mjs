@@ -53,4 +53,4 @@ function reset(ref){if(!confirm('Replace this server estate and its local audit?
 $('blank').onclick=()=>reset(false);$('ref').onclick=()=>reset(true);
 fields();draw();persist();
 
-document.querySelector('main').inert = false;
+document.body.inert = false;
