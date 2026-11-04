@@ -3,7 +3,7 @@ const {strict:assert}=require('node:assert');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 (async()=>{
-  const directory=path.resolve('evidence-local');
+  const directory=path.resolve(process.env.OIA_TEST_DIRECTORY || 'evidence-local');
   await fs.mkdir(directory,{recursive:true});
   const exe=process.argv[2]||path.join(directory,'installed','Industrial Engineering Workshop.exe');
   const project=path.join(directory,'windows-roundtrip.json');
@@ -20,6 +20,20 @@ const path=require('node:path');
     await page.reload({waitUntil:'domcontentloaded',timeout:12000});
     await page.locator('#mode option').first().waitFor({state:'attached'});
     assert.equal(await page.locator('h1').innerText(),'Packaging workshop');
+    for (const [relative, asset] of [['commissioning/index.html','register.mjs'],['index.html','workshop.mjs']]) {
+      let release;
+      const held=new Promise(resolve=>{release=resolve;});
+      const pattern='**/'+asset+'*';
+      await page.route(pattern,async route=>{await held;await route.continue();});
+      try {
+        await page.goto('workshop://local/workshop/'+relative,{waitUntil:'commit'});
+        await page.waitForFunction(()=>document.body?.inert && document.querySelector('header a'));
+        assert.equal(await page.locator('header a').first().evaluate(a=>a.closest('[inert]')===document.body),true);
+      } finally { release(); }
+      await page.waitForFunction(()=>document.body?.inert===false);
+      await page.unroute(pattern);
+      console.log('Before module startup the whole body, including the header, was inert; enabled after startup:',relative);
+    }
     assert.equal(await page.evaluate(()=>typeof window.require),'undefined');
     assert.equal(await page.evaluate(()=>typeof window.workshopHost?.openProject),'function');
     if (process.env.OIA_FREECAD_TEST==='1') {
