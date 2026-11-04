@@ -1,3 +1,5 @@
+import {loadProject,saveProject} from '../../model.mjs';
+import {commission,commissioningCase} from './commission.mjs';
 import {defaultParameters,limits,observable,simulate,sweep,sampleAt,csv} from './experiment.mjs';
 const $=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
 const labels={duration:'Run duration (s)',period:'Sample period (s)',initial:'Initial speed (m/s)',setpoint:'Speed demand (m/s)',stepAt:'Demand step (s)',mass:'Equivalent mass (kg)',drag:'Viscous drag (N·s/m)',kp:'Proportional gain (N·s/m)',ki:'Integral gain (N/m)',limit:'Drive force limit (N)',load:'Disturbance load (N)',loadAt:'Load step (s)'};
@@ -84,3 +86,50 @@ $('zoomIn').onclick=()=>zoom(.5);$('zoomOut').onclick=()=>zoom(2);$('fit').oncli
 $('chart').onclick=e=>{const point=new DOMPoint(e.clientX,e.clientY).matrixTransform($('chart').getScreenCTM().inverse());const x=Math.max(0,Math.min(1,(point.x-box.left)/(box.right-box.left)));at=windowStart+x*(windowEnd-windowStart);draw();};
 $('export').onclick=()=>action(()=>{const blob=new Blob([csv(shown())],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='drive-response.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return 'Exported '+shown().length+' visible runs with parameters and samples.';});
 add([{result:simulate(),label:'Reference drive'}]);$('status').textContent='Reference run ready. Change the settings or sweep a gain to compare responses.';
+
+let driveCase=1;
+const driveForm=$('drive-trial'),driveBrief=$('drive-brief'),proof=$('drive-proof');
+const profileName=()=>localStorage.getItem('oia-workshop-profile-v1')||'Learner';
+const driveProfile=(()=>{try{return profileName();}catch{return null;}})();
+const storagePrefix='oia-workshop-v1:'+encodeURIComponent(driveProfile||'Learner')+':';
+function readAttempts(){
+ if(!driveProfile)return [];
+ try{
+  const active=localStorage.getItem(storagePrefix+'active'),a=active?loadProject(active).extensions.drivePractical:JSON.parse(localStorage.getItem(storagePrefix+'drive-practical')||'[]');
+  return Array.isArray(a)?a.slice(-24).filter(t=>[1,2].includes(t?.id)&&[t.force,t.kp,t.ki].every(Number.isFinite)):[];
+ }catch{return [];}
+}
+function saveAttempt(entry){
+ try{
+  if(!driveProfile||profileName()!==driveProfile)return false;
+  const recent=[...readAttempts(),entry].slice(-24);
+  const active=localStorage.getItem(storagePrefix+'active');
+  if(active){const project=loadProject(active);project.extensions.drivePractical=recent;localStorage.setItem(storagePrefix+'active',saveProject(project));}
+  else localStorage.setItem(storagePrefix+'drive-practical',JSON.stringify(recent));
+  return true;
+ }catch{return false;}
+}
+function priorPass(id){return readAttempts().some(t=>{try{return t.id===id&&commission(id,t.force,t.kp,t.ki).pass;}catch{return false;}});}
+function describeDrive(){
+  const p=commissioningCase(driveCase);
+  driveBrief.textContent='Job '+driveCase+' of 2. Commission a '+p.mass+' kg conveyor at '+p.setpoint+' m/s. Drag is '+p.drag+' N per m/s. A '+p.load+' N opposing load is applied at 6 s. Predict the holding force, then tune both gains and test your design.';
+}
+function trialTrace(result,label){
+  if(runs.length>=8)throw Error('Remove a trace to make room for this commissioning test.');
+  add([{result,label}]);
+}
+$('drive-baseline').onclick=()=>action(()=>{trialTrace(simulate(commissioningCase(driveCase)),'Job '+driveCase+' · weak controller');return 'Baseline plotted. Inspect speed before and after 6 s.';});
+driveForm.onsubmit=e=>{e.preventDefault();action(()=>{
+  const f=driveForm.elements,r=commission(driveCase,Number(f.force.value),Number(f.kp.value),Number(f.ki.value));
+  trialTrace(r.run,'Job '+driveCase+' · Kp '+f.kp.value+', Ki '+f.ki.value);
+  const rows=r.checks.map(c=>{const row=document.createElement('p');row.textContent=(c.pass?'Pass · ':'Rework · ')+c.name+' — '+c.reading+(c.pass?'':'. '+c.hint);return row;});
+  const summary=document.createElement('strong');summary.textContent=r.pass?(driveCase===1?'Job accepted. Test the changed load next.':'Transfer test accepted. Both loads commissioned.'):'Job remains open. Compare the traces, then revise your design.';
+  const saved=saveAttempt({id:driveCase,force:Number(f.force.value),kp:Number(f.kp.value),ki:Number(f.ki.value)});
+  if(!saved)summary.textContent+=' This session could not save the result.';
+  proof.replaceChildren(summary,...rows);$('drive-next').disabled=!(driveCase===1&&r.pass);
+  return 'Commissioning measurements captured in the plot.';
+});};
+$('drive-next').onclick=()=>{driveCase=2;driveForm.reset();$('drive-next').disabled=true;proof.replaceChildren();describeDrive();};
+if(priorPass(1)){if(priorPass(2))proof.textContent='Both load cases previously passed with saved controller settings.';else{driveCase=2;proof.textContent='The first load passed. Complete the transfer test.';}}
+describeDrive();
+if(new URLSearchParams(location.search).get('practical')==='drive'){$('drive-job').open=true;$('drive-job').scrollIntoView({block:'center'});}

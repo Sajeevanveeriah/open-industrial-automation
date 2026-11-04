@@ -19,5 +19,22 @@ try{for(const width of [390,1440]){
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export visible runs as CSV'}).click();const download=await pending;const content=await readFile(await download.path(),'utf8');
   assert.equal(content.trim().split('\r\n').length,1+601*3+101);assert.ok(!content.includes('\r\n2,'));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.addScriptTag({path:'node_modules/axe-core/axe.min.js'});
-  assert.deepEqual(await page.evaluate(async()=>(await axe.run()).violations.map(v=>v.id)),[]);assert.deepEqual(errors,[]);console.log(width+' px: initial trace, three-run sweep, visibility, zoom, keyboard cursor, coast-down and 1,904-sample CSV verified; zero axe violations and page errors.');await page.close();
+  assert.deepEqual(await page.evaluate(async()=>(await axe.run()).violations.map(v=>v.id)),[]);assert.deepEqual(errors,[]);console.log(width+' px: initial trace, three-run sweep, visibility, zoom, keyboard cursor, coast-down and 1,904-sample CSV verified; zero axe violations and page errors.');
+  await page.goto(base+'/workshop/studio/analysis/index.html?practical=drive');
+  await page.locator('#drive-trial [name=force]').fill('6');
+  await page.locator('#drive-trial button').click();
+  assert.match(await page.locator('#drive-proof').innerText(),/Job remains open/);
+  await page.locator('#drive-trial [name=kp]').fill('45');
+  await page.locator('#drive-trial [name=ki]').fill('30');
+  await page.locator('#drive-trial button').click();
+  await page.getByRole('button',{name:'Try the second load'}).click();
+  await page.locator('#drive-trial [name=kp]').fill('45');
+  await page.locator('#drive-trial [name=ki]').fill('30');
+  await page.locator('#drive-trial [name=force]').fill('6');
+  await page.locator('#drive-trial button').click();assert.match(await page.locator('#drive-proof').innerText(),/Job remains open/);
+  await page.locator('#drive-trial [name=force]').fill('7');
+  await page.locator('#drive-trial button').click();assert.match(await page.locator('#drive-proof').innerText(),/Transfer test accepted/);
+  await page.reload();await page.getByText('Both load cases previously passed with saved controller settings.').waitFor();
+  console.log('Two load cases commissioned and reopened; incorrect force and an insufficient gain were rejected.');
+  await page.close();
 }}finally{await browser.close();await local?.close();}

@@ -4,7 +4,7 @@ The Windows edition bundles the static site, Chromium and Node in an Electron ho
 
 ## Start the workshop
 
-The Windows application opens the facility overview. Follow a load, inspect the plant, or open the cell studio from the overview. In the cell studio, use **New project** for a blank scene or the working reference cell. **Save project** and **Open project** use Windows file pickers. The Workshop menu opens the classic packaging workshop and the reference plant. The classic project cabinet retains its original file format and local projects.
+The Windows application opens the distribution floor with a dispatch job. Select **Find matching pallet**, compare the stock with the ticket, reserve it for the correct door, identify the assigned truck and reconcile the trailer receipt. The job saves progress locally. Follow a load, inspect the plant, or open the cell studio from the overview. In the cell studio, use **New project** for a blank scene or the working reference cell. **Save project** and **Open project** use Windows file pickers. The Workshop menu opens the classic packaging workshop and the reference plant. The classic project cabinet retains its original file format and local projects.
 
 The host checks the facility viewport, asset inventory and ready state. If the facility cannot initialise, it opens the cell studio. If the cell studio also fails, it opens the classic workshop. A renderer crash offers to reopen the most recently used facility, studio or classic surface. Profiles and projects stay outside the installed program directory.
 
@@ -53,3 +53,5 @@ NVIDIA Kit and FreeCAD are not redistributed. Their use requires a separate inst
 Start with an approved original CAD part and confirm units, up-axis and part hierarchy. Convert to USD, attach materials and semantic part IDs, then define the required simulation profile. An articulated asset also needs verified pivots, joint axes and limits, a collision proxy and plausible mass and inertia. Validate the relevant profile before testing contacts or sensor performance. The bundled pilot uses named metre-scale geometry and kinematic animation; its asset has no SimReady certification. NVIDIA lists conversion, authoring and profile validation as separate stages. [NVIDIA SimReady guidance](https://docs.omniverse.nvidia.com/simready/latest/simready-faq.html), read 4 November 2026.
 
 Run `npm run test:crash` after the web build to exercise a forced renderer crash and abrupt development-process termination in a unique local profile. Its launch uses the development Electron executable and never opens a project from the installed application's profile.
+
+Use `node verify-jobs.cjs` with the packaged executable path to check the dispatch shift, PLC wiring and transfer case, conveyor drive commissioning, bracket measurement and mounting through the native user interface.

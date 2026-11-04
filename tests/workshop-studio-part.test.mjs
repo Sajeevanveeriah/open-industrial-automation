@@ -30,3 +30,19 @@ test('a replacement project with no previous part cannot receive a stale editor 
   const before=storage.getItem(key);assert.throws(()=>persistPart(storage,original,initialPart(),true),/replaced or rewound/);assert.equal(storage.getItem(key),before);
   const context=projectContext(storage);addAsset(replacement,'plc','CPU');storage.setItem(key,saveProject(replacement));assert.doesNotThrow(()=>persistPart(storage,context,initialPart(),true));
 });
+import {drawings,attempt,recordPrediction,checkBracket,mountedRecord,angleProfile,drawingBrief} from '../simulator/workshop/studio/part/bracket-practical.mjs';
+test('two independent bracket drawings reject starter, bad prediction, rework and inert evidence',()=>{
+  for(const [d,nominal] of [[drawings.A,20.736],[drawings.B,18.792]]){
+    const a=attempt(d),correct={...a.start,depth:d.depth,profile:angleProfile(d.width,d.height,d.wall)};
+    assert.ok(!checkBracket(a,a.start).pass);assert.ok(!checkBracket(a,correct).pass);
+    recordPrediction(a,nominal+1);a.edited=true;assert.ok(!checkBracket(a,correct).pass);
+    assert.throws(()=>recordPrediction(a,nominal),/another attempt/);
+    const retry=attempt(d);recordPrediction(retry,nominal);retry.edited=true;
+    assert.ok(!checkBracket(retry,{...correct,profile:angleProfile(d.width,d.height,d.wall+1)}).pass);
+    assert.ok(checkBracket(retry,correct).pass);
+    assert.throws(()=>mountedRecord(retry,correct,4),/mounting/);
+    const record=mountedRecord(retry,{...correct,mount:{assetId:'EYE-MOUNT'}},4);
+    assert.equal(record.measured.volumeCM3,nominal);assert.equal(record.assetId,'EYE-MOUNT');
+  }
+  const custom=drawingBrief({...drawings.A,width:90});assert.equal(custom.id,'custom');assert.throws(()=>drawingBrief({...drawings.A,tolerance:500}));
+});

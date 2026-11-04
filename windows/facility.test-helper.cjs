@@ -41,6 +41,7 @@ async function verifyFacility(app,page,directory) {
   await fs.writeFile(path.join(directory,'facility-metrics.json'),JSON.stringify({...metrics,inventoryOptions:count,offlineEmulated:true,backgroundThrottling:false},null,2));
   console.log('Native facility RAF measurement:',JSON.stringify(metrics));
 
+  if (await page.locator('#shift-free').isVisible()) await page.locator('#shift-free').click();
   const file=path.join(directory,'facility-native-'+Date.now()+'.json');
   await app.evaluate(({dialog},target)=>{
     globalThis.savedFacilityDialogs={open:dialog.showOpenDialog,save:dialog.showSaveDialog};

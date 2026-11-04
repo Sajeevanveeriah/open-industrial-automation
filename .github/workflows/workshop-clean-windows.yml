@@ -62,6 +62,8 @@ jobs:
           if (!(Test-Path -LiteralPath $exe)) { throw 'Shortcut target missing' }
           node verify.cjs $exe
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node verify-jobs.cjs $exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $saved = (Get-FileHash evidence-local/windows-roundtrip.json).Hash
           $uninstaller = Join-Path (Split-Path $exe) 'Uninstall Industrial Engineering Workshop.exe'
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/S','/currentuser' -Wait -PassThru

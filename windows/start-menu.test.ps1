@@ -25,8 +25,8 @@ try{
     if($labels -notcontains 'New order'){Start-Sleep -Milliseconds 300}
   }until($labels -contains 'New order' -or (Get-Date) -ge $end)
   Write-Output "Normal shortcut window: $($subject.MainWindowTitle); process: $($subject.Id)"
-  $labels | Where-Object {$_ -in 'New order','Cell Studio','Distribution floor','Scenario','Follow vehicle','Processing plant'} | Sort-Object -Unique
-  if ($labels -notcontains 'New order' -or $labels -notcontains 'Cell Studio'){throw 'Workshop controls unavailable from the normal shortcut window'}
+  $labels | Where-Object {$_ -in 'New order','Cell Studio','Find matching pallet','Choose a job','Distribution floor','Scenario','Follow vehicle','Processing plant'} | Sort-Object -Unique
+  if ($labels -notcontains 'New order' -or $labels -notcontains 'Cell Studio' -or $labels -notcontains 'Choose a job'){throw 'Workshop controls unavailable from the normal shortcut window'}
 }finally{
   [void]$subject.CloseMainWindow()
   if(-not $subject.WaitForExit(10000)){throw 'Test shortcut instance did not close normally'}

@@ -1,3 +1,4 @@
+import {checkStudioPracticals} from './workshop-studio-practicals-ui.mjs';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {mkdir,readFile} from 'node:fs/promises';
@@ -30,14 +31,13 @@ async function panel(p,label,width){if(width<761)await p.locator('.mobile-tabs')
 async function inspect(p,id,width){await panel(p,'Assets',width);await p.locator('[data-asset="'+id+'"]').click();await panel(p,'Inspector',width);}
 async function ss(p,width){if(!process.env.OIA_WORKSHOP_SCREENSHOTS)return;await mkdir(process.env.OIA_WORKSHOP_SCREENSHOTS,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:resolve(process.env.OIA_WORKSHOP_SCREENSHOTS,'studio-'+width+'.png')});}
 try{
- browser=await chromium.launch({...process.env.OIA_CHROMIUM?{executablePath:process.env.OIA_CHROMIUM}:{},args:['--enable-unsafe-swiftshader']});
+ browser=await chromium.launch({executablePath:process.env.OIA_CHROMIUM||undefined});
  for(const width of [1440,390]){
   const c=await browser.newContext({viewport:{width,height:width===1440?900:844}}),p=await c.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(15000);
-  await p.goto(entry);await p.waitForURL(url=>url.pathname.endsWith('/studio/index.html')||url.pathname.endsWith('/facility/index.html'));
-  if(p.url()!==studio){await p.locator('a').filter({hasText:/packaging cell|cell studio|engineering studio/i}).first().click();}
+  await p.goto(studio);
   await p.waitForURL(studio);await ready(p);
   assert.equal(await p.locator('#asset-tree .asset-row').count(),10);assert.ok(await p.locator('#viewport canvas,#viewport svg').count()>0);assert.equal(await p.locator('.viewport-error').count(),0);
-  await diagnose(p,width);await ss(p,width);
+  await diagnose(p,width);await ss(p,width);await checkStudioPracticals(p,width);
   const runbox=await p.locator('#quick-run').boundingBox();assert.ok(runbox.y+runbox.height<844);assert.equal(await p.locator('#analysis').isVisible(),true);
   await p.click('#quick-run');await p.waitForFunction(()=>document.querySelector('#clock').textContent!=='00:00.0');await p.click('#quick-run');const paused=await p.locator('#clock').innerText();await p.waitForTimeout(180);assert.equal(await p.locator('#clock').innerText(),paused);
   await inspect(p,'belt',width);await p.fill('#prop-speed','0.5');await p.fill('#prop-length','5');await p.click('#apply-properties');

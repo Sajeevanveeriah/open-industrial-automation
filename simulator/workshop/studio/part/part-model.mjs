@@ -1,3 +1,4 @@
+import {mountedRecord} from './bracket-practical.mjs';
 import {solve,generate,drawing} from '../../cad/features.mjs';
 import {createProject,addAsset,configure,loadProject,saveProject} from '../../model.mjs';
 const check=(ok,msg)=>{if(!ok)throw Error(msg);};
@@ -42,10 +43,11 @@ export function stlBytes(p){
 const profileKey='oia-workshop-profile-v1';
 export function projectContext(storage){
   const profile=storage.getItem(profileKey)||'Learner',key='oia-workshop-v1:'+encodeURIComponent(profile)+':active',raw=storage.getItem(key),project=raw?loadProject(raw):createProject('blank');
+  const records=project.extensions.bracketDrawingEvidence??[];check(Array.isArray(records)&&records.length<=48,'Invalid drawing evidence register.');
   const part=project.extensions.studioPart??null;if(part)analyse(part);
-  return {profile,key,origin:project.start,seed:project.seed,history:structuredClone(project.history),part,bracket:project.assets.find(a=>a.type==='bracket')?.id??null,signature:JSON.stringify(part)};
+  return {profile,key,records,origin:project.start,seed:project.seed,history:structuredClone(project.history),part,bracket:project.assets.find(a=>a.type==='bracket')?.id??null,signature:JSON.stringify(part)};
 }
-export function persistPart(storage,context,p,mount=false){
+export function persistPart(storage,context,p,mount=false,practical=null){
   analyse(p);const fresh=projectContext(storage);
   check(fresh.profile===context.profile,'The active learner changed. Reopen Part Studio before saving.');
   const sameBranch=fresh.origin===context.origin&&fresh.seed===context.seed&&fresh.history.length>=context.history.length&&context.history.every((row,i)=>{
@@ -67,6 +69,12 @@ export function persistPart(storage,context,p,mount=false){
     const width=solve(definition(saved)).w/1000;
     if(Math.abs(target.width-width)>1e-12)configure(project,target.id,{width});
   }
+  if(practical){
+    check(mount,'Drawing evidence requires installation on an active bracket.');
+    const record=mountedRecord(practical,saved,project.runtime.scan),prior=fresh.records;
+    check(prior.length<48,'Drawing evidence register is full.');
+    project.extensions.bracketDrawingEvidence=[...prior,record];
+  }
   project.extensions.studioPart=saved;
-  storage.setItem(fresh.key,saveProject(project));return {...fresh,bracket:project.assets.find(a=>a.type==='bracket')?.id??null,part:saved,signature:JSON.stringify(saved)};
+  storage.setItem(fresh.key,saveProject(project));return {...fresh,records:project.extensions.bracketDrawingEvidence??fresh.records,bracket:project.assets.find(a=>a.type==='bracket')?.id??null,part:saved,signature:JSON.stringify(saved)};
 }
