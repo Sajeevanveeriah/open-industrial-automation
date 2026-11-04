@@ -13,9 +13,9 @@ function settings(){
  if(p.kind==='fuse'){field('rating','Fuse rating (A)',p.rating,'number');area.append(p.blown?'Fuse open. Apply setting to replace.':'Fuse intact.');}
 }
 function draw(){options('part',net.parts.map(p=>p.id));options('a',pins(net));options('b',pins(net));options('cable',net.wires.map(([a,b])=>a+' → '+b));settings();}
-function save(){sessionStorage.setItem(key,JSON.stringify(net));}
+function save(){let stored;try{stored=JSON.parse(sessionStorage.getItem(key)||'null');}catch{}sessionStorage.setItem(key,JSON.stringify(stored?.instruments?{...net,instruments:stored.instruments}:net));}
 function act(fn){return ()=>{try{fn();save();}catch(e){$('result').textContent=e.message;}};}
-options('kind',Object.keys(catalogue));draw();
+options('kind',Object.keys(catalogue));draw();save();
 $('blank').onclick=act(()=>{net=blank();coils=[];draw();$('outputs').textContent='';$('result').textContent='Empty circuit.';});
 $('reference').onclick=act(()=>{net=reference();coils=[];draw();$('outputs').textContent='';$('result').textContent='Relay exercise loaded.';});
 $('part').onchange=settings;

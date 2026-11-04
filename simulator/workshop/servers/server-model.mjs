@@ -1,7 +1,7 @@
 const requirements={database:{ram:4,disk:12},application:{ram:2,disk:4}};
 const users=['operator','engineer','visitor','svc-app'];
 const groups=['view','admin','database'];
-const keys={host:['name','ram','disk'],deploy:['name','service'],grant:['user','group'],revoke:['user','group'],certificate:['name','days'],route:['name'],power:['name','on'],network:['name','on'],write:['user','label'],read:['user'],backup:['name'],damage:[],restore:['name'],replicate:['name'],patch:['name','version'],migrate:['name'],rollback:['name'],verify:['name'],advance:['seconds'],targets:['rto','rpo']};
+const keys={platform:['name','domain','os'],hypervisor:['domain','on'],mirror:['name'],diskFault:['name','member'],replaceDisk:['name','member'],host:['name','ram','disk'],deploy:['name','service'],grant:['user','group'],revoke:['user','group'],certificate:['name','days'],route:['name'],power:['name','on'],network:['name','on'],write:['user','label'],read:['user'],backup:['name'],damage:[],restore:['name'],replicate:['name'],patch:['name','version'],migrate:['name'],rollback:['name'],verify:['name'],advance:['seconds'],targets:['rto','rpo']};
 function check(ok,message){if(!ok)throw Error(message);}
 function integer(value,min,max,name){check(Number.isInteger(value)&&value>=min&&value<=max,name+' must be an integer from '+min+' to '+max+'.');return value;}
 function ident(v){check(typeof v==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,30}$/.test(v),'Use 1-31 letters, digits, underscores or hyphens for names.');return v;}
@@ -14,9 +14,13 @@ function hash(rows){
   return (h>>>0).toString(16).padStart(8,'0');
 }
 export function storage(h){return {ram:h.services.reduce((sum,n)=>sum+requirements[n].ram,0),disk:h.services.reduce((sum,n)=>sum+requirements[n].disk,0)+h.rows.length*0.01};}
+function hostUp(s,h){return h.power&&!s.offlineDomains.includes(h.domain);}
+function diskUp(h){return h.disks.some(v=>v==='healthy');}
 export function probe(s,h=s.hosts.find(x=>x.name===s.dns)){
   if(!h)return 'Application DNS record missing';
+  if(s.offlineDomains.includes(h.domain))return 'Hypervisor domain offline';
   if(!h.power)return 'Host offline';
+  if(!diskUp(h))return 'Data volume unavailable';
   if(!h.network)return 'Virtual switch disconnected';
   if(!h.services.includes('application'))return 'Application service absent';
   if(h.expiry<=s.time)return 'Server certificate expired';
@@ -41,7 +45,7 @@ function updateAvailability(s,was,baseline){
   }
 }
 export function createServers(reference=false){
-  const s={version:1,time:0,hosts:[],dns:null,groups:Object.fromEntries(users.map(u=>[u,[]])),rto:60,rpo:5,audit:[],log:[],issued:0,backup:null,outage:null,lastRecovery:null};
+  const s={version:1,time:0,hosts:[],offlineDomains:[],dns:null,groups:Object.fromEntries(users.map(u=>[u,[]])),rto:60,rpo:5,audit:[],log:[],issued:0,backup:null,outage:null,lastRecovery:null};
   if(reference){
     for(const name of ['alpha','bravo']){
       operate(s,'host',{name,ram:8,disk:32});
@@ -62,8 +66,11 @@ export function operate(s,action,args={}){
   if (action==='host') {
     ident(name);integer(args.ram,1,128,'Memory GiB');integer(args.disk,1,1024,'Disk GB');
     check(s.hosts.length<8&&!s.hosts.some(h=>h.name===name),'Choose a unique name. Up to eight hosts.');
-    s.hosts.push({name,ram:args.ram,disk:args.disk,services:[],power:true,network:true,expiry:0,app:1,schema:1,previous:null,image:null,rows:[],verification:null});
+    s.hosts.push({name,ram:args.ram,disk:args.disk,domain:name,os:'Linux',disks:['healthy'],services:[],power:true,network:true,expiry:0,app:1,schema:1,previous:null,image:null,rows:[],verification:null});
     result='Provisioned '+name;
+  }else if(action==='hypervisor'){
+    ident(args.domain);check(typeof args.on==='boolean'&&s.hosts.some(h=>h.domain===args.domain),'Select a configured hypervisor domain.');
+    s.offlineDomains=s.offlineDomains.filter(x=>x!==args.domain);if(!args.on)s.offlineDomains.push(args.domain);result=args.domain+' hypervisor '+(args.on?'online':'offline');
   }else if(action==='grant'||action==='revoke'){
     check(users.includes(user)&&groups.includes(args.group),'Unknown identity or group.');
     if(action==='grant')s.groups[user]=[...new Set([...s.groups[user],args.group])];
@@ -95,27 +102,43 @@ export function operate(s,action,args={}){
     }
   }else{
     const h=host(s,name);
-    if(action==='deploy'){
+    if(action==='platform'){
+      ident(args.domain);check(hostUp(s,h)&&!s.offlineDomains.includes(args.domain),'Cannot migrate onto or from an offline hypervisor.');
+      check(['Linux','Windows'].includes(args.os),'Choose a supported simulated OS.');h.os=args.os;h.domain=args.domain;result=name+' runs '+h.os+' on '+h.domain;
+    }else if(action==='mirror'){
+      check(hostUp(s,h)&&h.disks.length===1&&diskUp(h),'Require an online single-disk host.');
+      h.disks.push('healthy');result='Mirror synchronised across two '+h.disk+' GB members';
+    }else if(action==='diskFault'||action==='replaceDisk'){
+      check(hostUp(s,h),'Host management endpoint unavailable.');integer(args.member,1,h.disks.length,'Disk member');const ix=args.member-1;
+      if(action==='diskFault'){
+        check(h.disks[ix]==='healthy','Disk already failed.');h.disks[ix]='failed';
+        if(!diskUp(h)){h.rows=[];h.image=null;result='All copies lost; data volume unavailable';}
+        else result='Mirror degraded; committed records remain readable';
+      }else{
+        check(h.disks[ix]==='failed','Selected disk is healthy.');const retained=diskUp(h);h.disks[ix]='healthy';
+        result=retained?'Mirror rebuilt from healthy member':'Empty replacement volume online; restore records';
+      }
+    }else if(action==='deploy'){
       check(Object.hasOwn(requirements,args.service),'Unknown service.');check(!h.services.includes(args.service),'Already deployed.');
       const usage=storage(h),need=requirements[args.service];
       check(usage.ram+need.ram<=h.ram&&usage.disk+need.disk<=h.disk,'Insufficient allocated memory or disk.');
-      check(h.power&&h.network,'Host management endpoint unavailable.');h.services.push(args.service);result='Deployed '+args.service+' on '+name;
+      check(hostUp(s,h)&&diskUp(h)&&h.network,'Host management endpoint unavailable.');h.services.push(args.service);result='Deployed '+args.service+' on '+name;
     }else if(action==='route'){s.dns=name;result='Application DNS -> '+name;}
     else if(action==='power'||action==='network'){check(typeof args.on==='boolean','Choose on or off.');h[action]=args.on;result=name+' '+action+' '+(args.on?'on':'off');}
     else if(action==='certificate'){integer(args.days,1,365,'Certificate lifetime');h.expiry=s.time+args.days*86400;result='Certificate expires at '+h.expiry+' s';}
     else if(action==='patch'){
-      integer(args.version,1,2,'Application version');check(h.power&&h.network&&h.services.includes('application'),'Application management endpoint unavailable.');
+      integer(args.version,1,2,'Application version');check(hostUp(s,h)&&diskUp(h)&&h.network&&h.services.includes('application'),'Application management endpoint unavailable.');
       check(h.app!==args.version,'Specified version is already active.');
       h.previous={app:h.app,schema:h.schema};h.app=args.version;result=name+' application v'+h.app;
     }else if(action==='migrate'){
-      check(h.power&&h.network&&h.services.includes('database'),'Database management endpoint unavailable.');h.schema=h.app;result='Database compatibility set to v'+h.schema;
+      check(hostUp(s,h)&&diskUp(h)&&h.network&&h.services.includes('database'),'Database management endpoint unavailable.');h.schema=h.app;result='Database compatibility set to v'+h.schema;
     }else if(action==='rollback'){
-      check(h.power&&h.network&&h.previous,'No recoverable patch checkpoint on this host.');
+      check(hostUp(s,h)&&diskUp(h)&&h.network&&h.previous,'No recoverable patch checkpoint on this host.');
       h.app=h.previous.app;h.schema=h.previous.schema;h.previous=null;result='Restored application/schema v'+h.app+'/'+h.schema;
     }else if(action==='verify'){
       const health=probe(s,h);h.verification={at:s.time,app:h.app,schema:h.schema,result:health};result=name+' canary: '+health;
     }else{
-      check(h.power&&h.network&&h.services.includes('database'),'Selected database unavailable.');
+      check(hostUp(s,h)&&diskUp(h)&&h.network&&h.services.includes('database'),'Selected database unavailable.');
       if(action==='backup'){s.backup={at:s.time,source:name,checksum:hash(h.rows),restored:false,rows:[...h.rows]};result='Independent archive captured '+h.rows.length+' records';}
       if(action==='restore'){
         if(!s.backup||hash(s.backup.rows)!==s.backup.checksum) {
@@ -144,6 +167,18 @@ export function assessments(s){
     ['Proven authorised read and prohibited visitor access',s.audit.some(a=>a.action==='read'&&a.actor==='operator'&&a.result.startsWith('Read '))&&s.audit.some(a=>a.action==='read'&&a.actor==='visitor'&&a.result==='Access denied')&&!account(s,'visitor','view')&&!account(s,'visitor','admin')],
     ['Backup checksum verified by restore',Boolean(s.backup?.restored&&hash(s.backup.rows)===s.backup.checksum)],
     ['Measured RTO and RPO meet targets',Boolean(proof&&proof.expected>0&&proof.rto<=s.rto&&proof.rpo<=s.rpo)]
+  ];
+}
+export function faultDomainChecks(s){
+  const primary=s.hosts.find(h=>h.name===s.dns);if(!primary)return [];
+  const canary=s.hosts.filter(h=>h!==primary&&probe(s,h)==='Healthy'&&hash(h.rows)===hash(primary.rows));
+  const copy=structuredClone(s);if(!copy.offlineDomains.includes(primary.domain))copy.offlineDomains.push(primary.domain);
+  const survived=canary.filter(h=>probe(copy,copy.hosts.find(n=>n.name===h.name))==='Healthy');
+  return [
+    ['Primary survives one data-disk failure',primary.disks.length===2&&primary.disks.every(x=>x==='healthy')],
+    ['Matching standby survives primary hypervisor loss',primary.rows.length>0&&survived.length>0],
+    ['Archive integrity failure observed and contained',s.audit.some(e=>e.action==='restore'&&e.result.includes('integrity check failed'))],
+    ['Canary detected incompatibility before returning healthy',s.hosts.some(h=>{const probes=s.audit.filter(e=>e.action==='verify'&&e.result.startsWith(h.name+' canary:'));const bad=probes.findIndex(e=>e.result.includes('incompatible'));return bad>=0&&probes.slice(bad+1).some(e=>e.result.endsWith('Healthy'));})]
   ];
 }
 export function exportServers(s){return {format:'oia-server-study',version:1,log:s.log.map(([act,args])=>[act,{...args}])};}

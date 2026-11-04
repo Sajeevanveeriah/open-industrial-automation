@@ -15,7 +15,7 @@
     "test:delivery": "node --test tests/potato-delivery.test.mjs",
     "test:migration": "node scripts/potato-migration.mjs",
     "test:workshop": "node --test tests/workshop-*.test.mjs",
-    "test:workshop-ui": "node scripts/workshop-ui.mjs && node scripts/workshop-cad-ui.mjs"
+    "test:workshop-ui": "node scripts/workshop-ui.mjs && node scripts/workshop-cad-ui.mjs && node scripts/workshop-design-ui.mjs && node tests/workshop-fabric-browser.mjs && node tests/workshop-applied-ui.mjs && node tests/workshop-robot-ui.mjs"
   },
   "devDependencies": {
     "axe-core": "4.12.1",

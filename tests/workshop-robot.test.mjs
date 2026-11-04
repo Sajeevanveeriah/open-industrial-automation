@@ -47,3 +47,43 @@ test('vacuum loss between arrival at place and acceptance holds the carton for a
   assert.throws(()=>validateCell({...restored,externalCommand:'run'}),/Unknown/);
   assert.throws(()=>validateCell({...restored,events:[]}),/Missing transfer evidence/);
 });
+
+import {defaultPlan,defaultRoute,profile,jointTorque,planPallet,planRoute,newMission,vehicleStep,routeAssessment,cancelMission} from '../simulator/workshop/robot/advanced.mjs';
+test('quintic interpolation is stationary at the endpoints and has the analytic midpoint rate',()=>{
+  assert.deepEqual(profile(1,3,0,2),{q:1,v:0,a:0});
+  assert.deepEqual(profile(1,3,2,2),{q:3,v:0,a:0});
+  assert.deepEqual(profile(1,3,1,2),{q:2,v:1.875,a:0});
+});
+test('extended rigid rods recover their hand-calculated shoulder and elbow moments of inertia',()=>{
+  const c=newCell();c.arm.upper=c.arm.fore=1;c.arm.tcp=0;
+  const [s,e]=jointTorque(c,[0,0],[0,0],[1,0],1);
+  close(s,2/3+7/3+4);close(e,5/6+2);
+  assert.deepEqual(jointTorque(c,[0,0],[0,0],[0,0],10),[0,0]);
+});
+test('moving intercept, snake pallet identities and rate, torque and reach faults come from geometry',()=>{
+  const c=newCell(),r=planPallet(c,defaultPlan);assert.equal(r.pass,true);
+  close(r.events[0].x,c.carton.x+.08);assert.equal(r.events[0].timeS,2);assert.equal(r.events.at(-1).timeS,16);
+  assert.deepEqual(r.slots.map(v=>[v.row,v.column]),[[0,0],[0,1],[1,1],[1,0]]);
+  assert.equal(new Set(r.slots.map(v=>v.id)).size,4);
+  assert.match(planPallet(c,{...defaultPlan,transferS:.2}).reason,/rate|torque/);
+  assert.match(planPallet(c,{...defaultPlan,torqueNm:.1}).reason,/torque/);
+  assert.match(planPallet(c,{...defaultPlan,beltMps:1}).reason,/reach/);
+});
+test('occupancy planning uses valid neighbouring cells and rejects disconnected bays',()=>{
+  const path=planRoute(defaultRoute);assert.equal(path.length,9);
+  path.slice(1).forEach((v,i)=>{assert.equal(Math.abs(v[0]-path[i][0])+Math.abs(v[1]-path[i][1]),1);assert.ok(!defaultRoute.blocked.split(';').includes(v.join(',')));});
+  assert.throws(()=>planRoute({...defaultRoute,blocked:'0,1;1,0'}),/No four-neighbour route/);
+});
+test('wheel slip with no landmarks produces analytic world error while a reliable correction enables acceptance',()=>{
+  const straight={...defaultRoute,goalX:1,goalY:0,slip:.2,landmarkEvery:0,dropEvery:0};
+  const m=newMission(straight);while(m.state!=='succeeded')vehicleStep(m);close(m.odom[0],1);close(m.truth[0],.8);close(routeAssessment(m).physicalError,.2);assert.equal(routeAssessment(m).pass,false);
+  const fused=newMission({...straight,landmarkEvery:1});while(fused.state!=='succeeded')vehicleStep(fused);assert.ok(routeAssessment(fused).pass);
+  const mismatch=newMission({...straight,landmarkEvery:1,reliability:'best-effort',subscriber:'reliable'});while(mismatch.state!=='succeeded')vehicleStep(mismatch);
+  assert.equal(mismatch.received,0);assert.equal(mismatch.feedback[0].transport,'incompatible QoS');assert.equal(routeAssessment(mismatch).pass,false);
+});
+test('mobile cancellation stops state advancement and saved checkpoints replay exactly',()=>{
+  const m=newMission(defaultRoute);for(let i=0;i<8;i++) vehicleStep(m);cancelMission(m);const stopped=structuredClone(m);vehicleStep(m);assert.deepEqual(m,stopped);
+  const c=newCell();c.advanced={plan:defaultPlan,route:m.settings,ticks:m.elapsedTicks,cancelled:true};const recovered=validateCell(JSON.parse(JSON.stringify(c))).advanced;
+  const replay=newMission(recovered.route);for(let i=0;i<recovered.ticks;i++)vehicleStep(replay);if(recovered.cancelled)cancelMission(replay);assert.deepEqual(replay,m);
+  assert.throws(()=>validateCell({...c,advanced:{...c.advanced,ticks:50000}}));
+});

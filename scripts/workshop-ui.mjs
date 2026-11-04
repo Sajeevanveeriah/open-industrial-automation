@@ -138,5 +138,18 @@ try {
   assert.equal(portable.learning.demonstrated.video,undefined,'One successful network path must not earn fault diagnosis mastery.');
   assert.ok(portable.learning.demonstrated.pallet);assert.ok(portable.learning.demonstrated.erp);
   await page.locator('#profile-name').fill('Another learner');await click('Switch profile');assert.equal(await page.locator('#asset option').count(),0);
+  await click('Load reference cell');await click('Replace cell');
+  await page.getByText('Synchronise engineering benches',{exact:true}).click();
+  await click('Bind benches to cell clock');
+  assert.match(await page.locator('#sync-read').innerText(),/cyclic I\/O connected/);
+  await click('Add carton');await run(2);
+  await page.selectOption('#sync-link','GATE_CORE');await click('Disconnect lead');await run(3);
+  assert.equal(await page.locator('#readings strong').nth(2).textContent(),'1');
+  assert.match(await page.locator('#sync-read').innerText(),/quality Stale; source scan 20/);
+  await click('Restore lead');await run(4);
+  assert.match(await page.locator('#sync-read').innerText(),/Supervisory count 1; quality Good/);
+  await click('Take checkpoint');await run(2);await click('Restore checkpoint');
+  assert.match(await page.locator('#sync-read').innerText(),/scan 90 at 9.0 s/);
+  await run(2);assert.match(await page.locator('#records').textContent(),/PAL-1/);
   assert.deepEqual(errors,[]);console.log('Workshop passed: independent blank build, travel, scan count, edit undo, checkpoint, robot recovery, acknowledgement loss, commissioning, interchange, profile isolation and responsive layout.');
 } finally { await browser?.close();if(server)await new Promise(r=>server.close(r)); }

@@ -1,3 +1,4 @@
+import {bindClockControls} from './coupled-controls.mjs';
 import { createProject, addAsset, configure, connect, addCarton, step, command, inspect, assess, saveProject, loadProject as replayProject } from './model.mjs';
 import { chapters, coaching, depths, modes, paths } from './curriculum.mjs';
 
@@ -148,7 +149,9 @@ function drawScene() {
   }
   el('drawing').replaceChildren(svg);
 }
+const drawCoupled=bindClockControls(()=>active,action=>runtime(action));
 function drawReadings() {
+  drawCoupled();
   const state = inspect(active), r=active.runtime;
   drawScene();
   const values=[['Simulation time',state.time.toFixed(1)+' s'],['PLC input',state.input?'HIGH':'LOW'],['PLC counter',r.count],['HMI display',state.hmi===null?'Unbound':String(state.hmi)]];
@@ -167,28 +170,8 @@ function drawAssessment() {
   el('assessment').replaceChildren(...checks.map(c=>element('li',(c.pass?'Passed':'Open')+' · '+(chapters.find(ch=>ch.test===c.id)?.title||c.id)+' · '+c.reason)));
 }
 function chapterMastery() {
-  const checks=assess(active), checked=id=>checks.some(c=>c.id===id&&c.pass);
-  const report=active.learning.demonstrated && typeof active.learning.demonstrated==='object' && !Array.isArray(active.learning.demonstrated)?active.learning.demonstrated:{};
-  const configured=(type,keys)=>active.history.some(([op,id,patch])=>op==='configure'&&current(id)?.type===type&&keys.some(key=>Object.hasOwn(patch,key)));
-  const placed=type=>active.history.some(([op,kind])=>op==='addAsset'&&kind===type);
-  const wired=(from,to)=>active.history.some(([op,id,,target])=>op==='connect'&&current(id)?.type===from&&current(target)?.type===to);
-  const cmd=name=>active.history.some(([op,n])=>op==='command'&&n===name);
-  const events=active.runtime.events;
-  const sequence=(...kinds)=>{let index=-1;return kinds.every(kind=>{index=events.findIndex((e,i)=>i>index&&e.kind===kind);return index>=0;});};
-  const predicted=cmd('predict')&&checked('transfer');
-  const evidence={
-    travel:predicted&&(placed('conveyor')||configured('conveyor',['speed'])||configured('bracket',['x'])),
-    sensor:wired('sensor','plc')&&(active.runtime.scans.some(s=>s.input)||active.runtime.cartons.some(c=>c.requestScan!==null&&Number.isFinite(c.requestScan))),
-    counter:cmd('installProgram')||configured('plc',['mode'])||placed('plc')&&wired('sensor','plc'),
-    hmi:wired('plc','hmi')||configured('hmi',['tag']),
-    video:active.learning.videoBlocked&&active.learning.videoRestored,
-    pallet:sequence('first-out','reset','placed'),
-    erp:cmd('retryERP')&&sequence('erp-commit','ack-lost','ack'),
-    commissioning:active.runtime.evidence.filter(e=>e.pass).every(e=>new Set([e.tester,e.witness,e.authority]).size===3)&&cmd('evidence'),
-    transfer:active.start==='blank'&&predicted&&placed('conveyor')&&wired('bracket','sensor')
-  };
-  for(const c of checks)if(c.pass&&evidence[c.id])report[c.id]={scan:active.runtime.scan,seed:active.seed};
-  active.learning.demonstrated=report;
+  command(active,'assessSkills');
+  active.learning.demonstrated={...active.learning.demonstrated,...active.runtime.earned};
 }
 function drawGuide() {
   options(el('mode'),modes,mode);options(el('depth'),depths,active.learning.depth);options(el('chapter'),chapters.map((c,i)=>[i+1,(i+1)+'. '+c.title]),active.learning.chapter);
@@ -214,8 +197,11 @@ function drawGuide() {
   const actions=element('div');actions.className='tools';
   actions.append(buttons('Open in Free Build',()=>changeMode('Free Build')),buttons('Start this chapter independently',()=>confirmReplace(()=>{const p=fresh(active.learning.chapter===1?'blank':'reference');p.learning.chapter=active.learning.chapter;p.learning.depth=active.learning.depth;p.learning.mode=mode;replaceProject(p,'Chapter opened as an editable project.');})));
   const jump=element('a','Go to cell schematic');jump.href='#bench';actions.prepend(jump);guide.append(actions);
-  const mastery=active.learning.demonstrated?.[chapter.test];if(mastery)guide.append(element('p','Assessment recorded at scan '+mastery.scan+' in seed '+mastery.seed+'.'));
-  const path=element('details');path.append(element('summary','Role learning path'));for(const [stage,task] of paths)path.append(element('p',stage+' · '+task));guide.append(path);
+  const mastery=active.runtime.earned?.[chapter.test];
+  if(mastery)guide.append(element('p','Assessment recorded at scan '+mastery.scan+' in seed '+mastery.seed+'.'));
+  else if(active.learning.demonstrated?.[chapter.test])guide.append(element('p','Imported learning record. Reassess this design to establish a replayable result.'));
+  const path=element('details');path.append(element('summary','Role learning path'));for(const [stage,task] of paths)path.append(element('p',stage+' · '+task));const foundations=element('a','Open foundations and prior-learning challenges');foundations.href='./site/learning.html';
+  foundations.addEventListener('click',()=>{persist();sessionStorage.setItem('oia-workshop-foundations-transfer-v1',JSON.stringify(active.extensions.foundations??null));});path.append(foundations);guide.append(path);
   if(mode==="Engineer’s Reference"){guide.append(element('p','This built-in packaging cell uses a one-dimensional constant-speed belt, a sampled beam and a discrete pick target. Each 100 ms tick samples the input, executes the counter, processes the handshake and posts completed pallets. Use the full plant for process and mass-flow dynamics.'));}
 }
 function current(id) { return active.assets.find(a=>a.id===id); }
@@ -362,7 +348,7 @@ listen('rack-link','click',()=>{persist();const storage='oia-workshop-rack-trans
 listen('case-link','click',()=>{persist();sessionStorage.setItem('oia-case-register-v1',JSON.stringify({register:active.extensions.commissioning||null,assets:active.assets.map(a=>a.id),checks:assess(active),scan:active.runtime.scan}));});
 window.addEventListener('pagehide',()=>{pause();persist();});
 function restoreBench() {
-  for(const [name,slot] of [['rack','infrastructure'],['cad','cad'],['practice','practice'],['commissioning','commissioning'],['robot','robot'],['layout','layout'],['electrical','electrical'],['servers','servers']]){
+  for(const [name,slot] of [['rack','infrastructure'],['cad','cad'],['practice','practice'],['commissioning','commissioning'],['robot','robot'],['layout','layout'],['electrical','electrical'],['servers','servers'],['foundations','foundations']]){
     const key=name==='servers'?'oia-workshop-servers-v1':'oia-workshop-'+name+'-transfer-v1', value=sessionStorage.getItem(key);if(!value)continue;
     sessionStorage.removeItem(key);
     if(value.length>2*1024*1024)throw Error('Returned bench data exceeds project limit.');

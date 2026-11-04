@@ -1,0 +1,49 @@
+name: Clean Windows workshop acceptance
+on:
+  pull_request:
+    paths:
+      - 'windows/**'
+      - 'simulator/workshop/**'
+      - 'scripts/build.mjs'
+      - '.github/workflows/workshop-clean-windows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clean-install:
+    if: github.event.repository.private == false
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm ci --prefix windows
+      - run: node windows/node_modules/electron/install.js
+      - run: npm test --prefix windows
+      - working-directory: windows
+        run: node node_modules/electron-builder/cli.js --win nsis --x64 --publish never
+      - name: Install on the clean runner and check the packaged app
+        working-directory: windows
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem release/OIA-Workshop-*-Windows-x64.exe)
+          if ($installer.Count -ne 1) { throw 'Expected one installer' }
+          $installation = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S','/currentuser' -Wait -PassThru
+          if ($installation.ExitCode -ne 0) { throw "Installation failed with exit code $($installation.ExitCode)" }
+          $link = Get-ChildItem "$env:APPDATA/Microsoft/Windows/Start Menu/Programs" -Filter 'Industrial Engineering Workshop.lnk' -Recurse | Select-Object -First 1
+          if (!$link) { throw 'Missing Start menu shortcut' }
+          $exe = (New-Object -ComObject WScript.Shell).CreateShortcut($link.FullName).TargetPath
+          if (!(Test-Path -LiteralPath $exe)) { throw 'Shortcut target missing' }
+          node verify.cjs $exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $saved = (Get-FileHash evidence-local/windows-roundtrip.json).Hash
+          $uninstaller = Join-Path (Split-Path $exe) 'Uninstall Industrial Engineering Workshop.exe'
+          $uninstall = Start-Process -FilePath $uninstaller -ArgumentList '/S','/currentuser' -Wait -PassThru
+          if ($uninstall.ExitCode) { throw "Uninstall failed: $($uninstall.ExitCode)" }
+          if ((Get-FileHash evidence-local/windows-roundtrip.json).Hash -ne $saved) { throw 'Uninstall altered learner project' }
+          Write-Output "Fresh Windows Server runner clean install, offline project interchange and preservation passed."

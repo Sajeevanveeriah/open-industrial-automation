@@ -1,8 +1,9 @@
+import {freshAdvanced,checkAdvanced} from './advanced-schema.mjs';
 const idPattern = /^[A-Za-z][A-Za-z0-9_-]{0,23}$/;
 export const kinds = ['camera', 'viewer', 'recorder', 'reader', 'controller', 'switch', 'router', 'server','plc','io','gateway'];
 export const protocols = ['icmp', 'video', 'archive', 'door', 'dns', 'ntp', 'admin','modbus','opcua','mqtt'];
 const servicePorts = {icmp:'ICMP echo', video:'RTSP 554', archive:'HTTPS 443', door:'controller 4370', dns:'DNS 53', ntp:'NTP 123', admin:'SSH 22',modbus:'Modbus TCP 502',opcua:'OPC UA 4840',mqtt:'MQTT 1883'};
-export const newRack = () => ({format:'oia.rack',version:1,devices:[],links:[],rules:[],clock:0,clips:[],backup:null,outage:null,recovery:null,events:[],packets:[],mac:[],hits:[],bindings:[],leases:[],sequence:0,process:{count:0,previous:false,sensor:false,sampledAt:null,quality:'Unknown',lastValue:null,sourceTime:null,arrivalTime:null,pending:[],posted:[]},background:[]});
+export const newRack = () => ({format:'oia.rack',version:1,advanced:freshAdvanced(),devices:[],links:[],rules:[],clock:0,clips:[],backup:null,outage:null,recovery:null,events:[],packets:[],mac:[],hits:[],bindings:[],leases:[],sequence:0,process:{count:0,previous:false,sensor:false,sampledAt:null,quality:'Unknown',lastValue:null,sourceTime:null,arrivalTime:null,pending:[],posted:[]},background:[]});
 function check(value, message) { if (!value) throw new Error(message); }
 function finite(n,min,max) {return Number.isFinite(n) && n>=min && n<=max;}
 function integer(n,min,max){return Number.isInteger(n)&&finite(n,min,max);}
@@ -252,6 +253,7 @@ export function importRack(data) {
   limitedList(src.hits,120,h=>time(h.time)&&byId(r,h.from)&&byId(r,h.to)&&protocols.includes(h.protocol)&&typeof h.permitted==='boolean','Invalid firewall log.');r.hits=src.hits;
   limitedList(src.bindings??[],192,b=>byId(r,b.switch)?.kind==='switch'&&integer(b.vlan,1,4094)&&/^02(:[0-9a-f]{2}){5}$/.test(b.addr)&&integer(b.port,1,48)&&integer(b.expiry,0,r.clock+300),'Invalid learned MAC table.');r.bindings=src.bindings??[];
   limitedList(src.leases??[],64,l=>byId(r,l.server)?.kind==='server'&&byId(r,l.client)&&ipv4(l.ip)!==null&&integer(l.expiry,0,r.clock+3600),'Invalid address lease.');r.leases=src.leases??[];
+  r.advanced=checkAdvanced(src.advanced??freshAdvanced(),r);
   return r;
 }
 

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<robot name="oia_training_arm">
+  <group name="packaging_arm"><chain base_link="base" tip_link="tcp"/></group>
+  <group_state name="inspection" group="packaging_arm"><joint name="shoulder" value="0.4"/><joint name="elbow" value="0.8"/></group_state>
+  <disable_collisions link1="base" link2="upper" reason="Adjacent"/>
+  <disable_collisions link1="upper" link2="fore" reason="Adjacent"/>
+  <disable_collisions link1="fore" link2="tool" reason="Adjacent"/>
+</robot>

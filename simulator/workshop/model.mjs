@@ -1,4 +1,5 @@
-import {compileLadder,compileProgram,executeScan,newController} from './practice/plc.mjs';
+import {bindCoupling, electricalScan, supervisoryScan, robotScan, resetCoupledRobot, setDisturbance} from './coupling.mjs';
+import {compileLadder,compileProgram,executeScan,newController,restartController} from './practice/plc.mjs';
 const controllers=new WeakMap();
 export const SCAN_SECONDS = 0.1;
 const MAX_SCANS = 36000;
@@ -94,7 +95,14 @@ export function configure(p,id,patch) {
     else requireValue(typeof value === 'boolean','Expected an on/off setting.');
   }
   action(p,'configure',[id,patch]);
+  const previous=['switch','camera','viewer'].includes(a.type)?network(p):null;
+  if(['bracket','sensor','conveyor'].includes(a.type)||a.type==='plc'&&Object.hasOwn(patch,'input'))delete p.runtime.sensorWitness;
   Object.assign(a,patch);
+  if(previous){
+    const now=network(p);
+    if(previous.video&&!now.video&&now.link&&!now.reachable)p.runtime.videoBlocked=true;
+    if(p.runtime.videoBlocked&&!previous.video&&now.video)p.runtime.videoRestored=true;
+  }
   if (a.type==='plc' && Object.hasOwn(patch,'mode')) {
     p.runtime.program=null;p.runtime.controller=null;p.runtime.diagnostic=null;controllers.delete(p);
   }
@@ -107,6 +115,7 @@ export function connect(p,from,port,to,input) {
   action(p,'connect',[from,port,to,input]);
   p.links=p.links.filter(l=>!(l.from === from && l.port === port) && !(l.to === to && l.input === input));
   p.links.push({from,port,to,input});
+  if(['bracket','conveyor','sensor'].includes(a.type))delete p.runtime.sensorWitness;
 }
 export function addCarton(p,lot='LOT-1') {
   const belt=first(p,'conveyor'), r=p.runtime;
@@ -168,21 +177,25 @@ function tick(p) {
   const bracket=source(p,eye,'base'), mounted=Boolean(bracket && belt && source(p,bracket,'base')===belt);
   const pos=mounted ? bracket.x + eye.x : NaN;
   r.scan++;
+  const permits=r.coupled?electricalScan(r.coupled):true;
   const inputs={I0:false,I1:false};
   const inBeam=[];
   const wires=p.links.filter(l=>eye && plc && l.from===eye.id && l.to===plc.id);
   for (const c of r.cartons) {
     if (c.status!=='moving') continue;
-    c.x=+(c.x+belt.speed*SCAN_SECONDS).toFixed(9);
+    if(permits)c.x=+(c.x+belt.speed*SCAN_SECONDS).toFixed(9);
     if (c.x<=belt.length && c.x>=pos && c.x<pos+eye.width) {
       inBeam.push(c);
-      for (const wire of wires) inputs[wire.input]=true;
+      if(!r.coupled||r.coupled.io)for (const wire of wires) inputs[wire.input]=true;
       if (c.detected===null) { c.detected=r.scan;record(p,'detection',eye.id,c.id+' crossed the beam'); }
     }
   }
+  const observed=wires.find(w=>inputs[w.input]);
+  if(observed && (!r.coupled||r.coupled.executing))r.sensorWitness={scan:r.scan,sensor:eye.id,plc:plc.id,terminal:observed.input,carton:inBeam[0].id};
   const input=plc ? inputs[plc.input] : false;
-  let pulse=plc && (plc.mode==='level' ? input : plc.mode==='rising' ? input&&!r.lastInput : !input&&r.lastInput);
-  if (r.program && plc) {
+  const executing=plc && (!r.coupled || r.coupled.executing);
+  let pulse=executing && (plc.mode==='level' ? input : plc.mode==='rising' ? input&&!r.lastInput : !input&&r.lastInput);
+  if (r.program && executing) {
     const previous=r.count;
     try {
       r.controller=executeScan(controllers.get(p),r.controller,{IN:input,I0:inputs.I0,I1:inputs.I1},SCAN_SECONDS);
@@ -199,12 +212,15 @@ function tick(p) {
     const next=acquired.find(c=>c.requestScan===null);
     if (next) next.requestScan=r.scan;
   }
-  r.inputCartons=input ? inBeam.map(c=>c.id) : [];
-  r.inputs=inputs;
-  r.lastInput=input;
+  if(!r.coupled || executing){
+    r.inputCartons=input ? inBeam.map(c=>c.id) : [];
+    r.inputs=inputs;
+    r.lastInput=input;
+  }
   r.scans.push({scan:r.scan,input,count:r.count,...inputs});
   if (r.scans.length>100) r.scans.shift();
-  const request=plc && robot && source(p,robot,'request')===plc;
+  if(r.coupled)supervisoryScan(r.coupled,r.scan,r.count);
+  const request=executing && robot && source(p,robot,'request')===plc;
   const ack=request && source(p,plc,'ack')===robot;
   let usedRobot=false;
   for (const c of r.cartons) {
@@ -212,8 +228,10 @@ function tick(p) {
     if (robot && c.x>=robot.target && robot.target<=belt.length && c.requestScan!==null && request && robot.enabled) {
       if (c.status==='moving' && c.x-robot.target<=belt.speed*SCAN_SECONDS) c.status='waiting';
       if (c.status==='waiting' && !r.firstOut && !usedRobot) {
-        if (!robot.vacuum || !ack) {
-          r.firstOut={scan:r.scan,asset:robot.id,carton:c.id,reason:robot.vacuum?'Acknowledgement circuit open':'Vacuum pickup failed'};
+        const cycle=r.coupled && ack && permits ? robotScan(r.coupled,c.id,robot.vacuum) : null;
+        if(r.coupled && (!permits || cycle==='busy')){usedRobot=true;continue;}
+        if (!robot.vacuum || !ack || (cycle!==null && cycle!=='placed')) {
+          r.firstOut={scan:r.scan,asset:robot.id,carton:c.id,category:!ack?'handshake':(!robot.vacuum||r.coupled?.vacuumLoss||r.coupled?.arm.signals.vacuum===false)?'vacuum':'motion',reason:cycle||(!robot.vacuum?'Vacuum pickup failed':'Acknowledgement circuit open')};
           record(p,'first-out',robot.id,r.firstOut.reason);
         } else {
           usedRobot=true;
@@ -231,7 +249,7 @@ function tick(p) {
 export function step(p,scans=1) {
   requireValue(Number.isSafeInteger(scans) && scans>0 && p.runtime.scan+scans<=MAX_SCANS,'Scan limit exceeded.');
   const count=p.runtime.cartons.length;
-  const cost=scans*(1+count+(p.runtime.program?p.runtime.program.source.length:0));
+  const cost=scans*(1+count+(p.runtime.coupled?90:0)+(p.runtime.program?p.runtime.program.source.length:0));
   requireValue(p.runtime.replayCost+cost<=3000000,'Simulation exceeds replay budget.');
   const last=p.history.at(-1);
   if (last?.[0]==='step') last[1]+=scans;
@@ -273,7 +291,7 @@ export function assess(p) {
   const wired=eye && plc && (source(p,plc,plc.input)===eye || passesEdges);
   return [
     row('travel', seen.length>0, 'Move a carton across the mounted beam.'),
-    row('sensor', wired && seen.length>0, 'Wire the sensor to the input read by the program.'),
+    row('sensor', wired && r.sensorWitness && source(p,plc,r.sensorWitness.terminal)===eye, 'Pass a carton through the beam and observe the wired input after the last design edit.'),
     row('counter', seen.length>0 && r.count===seen.length && !r.diagnostic && passesEdges && wired, 'Count once per detected carton on a rising edge.'),
     row('hmi', reads.hmi===r.count && first(p,'hmi')?.tag==='count' && r.count>0, 'Bind the live display to the counter.'),
     row('video', reads.network.video, reads.network.reason),
@@ -283,16 +301,62 @@ export function assess(p) {
     row('transfer', firstSeen && Math.abs((firstSeen.detected-firstSeen.startScan)*SCAN_SECONDS-r.prediction.seconds)<=SCAN_SECONDS+1e-8,'Predict the next carton travel time to within one 100 ms scan.')
   ];
 }
+function assessSkills(active) {
+  const current=id=>active.assets.find(a=>a.id===id);
+  const checks=assess(active), checked=id=>checks.some(c=>c.id===id&&c.pass);
+  const report=active.runtime.earned??{};
+  const configured=(type,keys)=>active.history.some(([op,id,patch])=>op==='configure'&&current(id)?.type===type&&keys.some(key=>Object.hasOwn(patch,key)));
+  const placed=type=>active.history.some(([op,kind])=>op==='addAsset'&&kind===type);
+  const wired=(from,to)=>active.history.some(([op,id,,target])=>op==='connect'&&current(id)?.type===from&&current(target)?.type===to);
+  const cmd=name=>active.history.some(([op,n])=>op==='command'&&n===name);
+  const events=active.runtime.events;
+  const sequence=(...kinds)=>{let index=-1;return kinds.every(kind=>{index=events.findIndex((e,i)=>i>index&&e.kind===kind);return index>=0;});};
+  const predicted=cmd('predict')&&checked('transfer');
+  const evidence={
+    travel:predicted&&(placed('conveyor')||configured('conveyor',['speed'])||configured('bracket',['x'])),
+    sensor:wired('sensor','plc')&&(active.runtime.scans.some(s=>s.input)||active.runtime.cartons.some(c=>c.requestScan!==null&&Number.isFinite(c.requestScan))),
+    counter:cmd('installProgram')||configured('plc',['mode'])||placed('plc')&&wired('sensor','plc'),
+    hmi:wired('plc','hmi')||configured('hmi',['tag']),
+    video:active.runtime.videoRestored,
+    pallet:sequence('first-out','reset','placed'),
+    erp:cmd('retryERP')&&sequence('erp-commit','ack-lost','ack'),
+    commissioning:active.runtime.evidence.filter(e=>e.pass).every(e=>new Set([e.tester,e.witness,e.authority]).size===3)&&cmd('evidence'),
+    transfer:active.start==='blank'&&predicted&&placed('conveyor')&&wired('bracket','sensor')
+  };
+  for(const c of checks)if(c.pass&&evidence[c.id])report[c.id]={scan:active.runtime.scan,seed:active.seed};
+  active.runtime.earned=report;
+}
 export function command(p,name,args={}) {
   const r=p.runtime;
   requireValue(args && typeof args==='object' && !Array.isArray(args),'Invalid command arguments.');
-  if (name==='releaseOrder') {
+  if(name==='assessSkills'){
+    action(p,'command',[name,{}],100+p.history.length*8+r.cartons.length*10);
+    assessSkills(p);
+  } else if(name==='bindBenches'){
+    requireValue(!r.coupled && !r.cartons.length && r.scan===0,'Bind the benches before introducing a carton or stepping the clock.');
+    const coupled=bindCoupling(args.design);
+    const belt=first(p,'conveyor'),bracket=first(p,'bracket');
+    requireValue(belt&&bracket&&first(p,'plc')&&first(p,'robot'),'Place a conveyor, bracket, PLC and robot before coupling.');
+    if(coupled.layout)requireValue(coupled.layout.bracket===bracket.id&&coupled.layout.conveyor===belt.id,'Use matching site and packaging asset IDs.');
+    action(p,'command',[name,{design:args.design}],1000);
+    if(coupled.layout){belt.length=coupled.layout.length;bracket.x=coupled.layout.position;}
+    r.coupled=coupled;
+    record(p,'commission','cell','Electrical enable, remote I/O, robot substeps and supervisory polling coupled');
+  } else if(name==='benchFault'){
+    requireValue(r.coupled,'Bind the engineering benches first.');
+    if(args.name==='link')requireValue(args.value===null||r.coupled.rack.links.some(l=>l.id===args.value),'Unknown patch lead.');
+    else requireValue(['powerStop','vacuumLoss','controllerStop'].includes(args.name)&&typeof args.value==='boolean','Invalid disturbance.');
+    action(p,'command',[name,{name:args.name,value:args.value}],200);
+    setDisturbance(r.coupled,args.name,args.value);
+    record(p,'disturbance','cell',args.name+' = '+String(args.value));
+  } else if (name==='releaseOrder') {
     identifier(args.id);
     action(p,'command',[name,{id:args.id}],1+r.pallets.length+r.pallets.filter(p=>!p.order).length*(1+r.pallets.length)); r.order=args.id;
     for (const pal of r.pallets.filter(pal=>!pal.order)) {pal.order=args.id;post(p,pal);}
     record(p,'order','cell','Released '+args.id);
   } else if (name==='resetRobot') {
     if (r.firstOut) {
+      requireValue(!r.coupled?.vacuumLoss,'Restore vacuum feedback before resetting.');
       const robot=first(p,'robot'), plc=first(p,'plc');
       requireValue(robot?.vacuum,'Restore vacuum before resetting.');
       requireValue(plc && source(p,plc,'ack')===robot,'Restore the acknowledgement circuit before resetting.');
@@ -300,13 +364,21 @@ export function command(p,name,args={}) {
     action(p,'command',[name,{}]);
     if (r.firstOut) {
       const affected=r.cartons.find(c=>c.id===r.firstOut.carton);
-      affected.recovery={faultAt:r.firstOut.scan,resetAt:r.scan,reason:r.firstOut.reason};
+      affected.recovery={faultAt:r.firstOut.scan,resetAt:r.scan,category:r.firstOut.category,reason:r.firstOut.reason};
     }
-    r.firstOut=null;record(p,'reset','cell','Robot reset');
+    resetCoupledRobot(r.coupled);r.firstOut=null;record(p,'reset','cell','Robot reset');
   } else if (name==='retryERP') {
     const pending=r.pallets.filter(x=>x.status==='pending');
     action(p,'command',[name,{}],1+r.pallets.length+pending.length*(1+r.pallets.length));
     for (const pal of pending) post(p,pal);
+  } else if (name==='restartPLC') {
+    const plc=first(p,'plc'),policy=args.policy;
+    requireValue(plc && ['Cold','Count retained','Count and blocks retained'].includes(policy),'Select a PLC and a restart policy.');
+    action(p,'command',[name,{policy}]);
+    if(r.controller)r.controller=restartController(r.controller,policy);
+    if(policy==='Cold')r.count=0;
+    if(policy!=='Count and blocks retained')r.lastInput=false;
+    record(p,'plc-restart',plc.id,'PLC restarted: '+policy);
   } else if (name==='installProgram') {
     const {language,source}=args,plc=first(p,'plc');
     requireValue(plc && ['ST','Ladder'].includes(language) && typeof source==='string' && source.length<=1600,'Place a PLC and select a supported language.');
@@ -320,7 +392,7 @@ export function command(p,name,args={}) {
   } else if (name==='disconnect') {
     const {from,port}=args;
     requireValue(p.links.some(l=>l.from===from && l.port===port),'Cable not found.');
-    action(p,'command',[name,{from,port}]);p.links=p.links.filter(l=>l.from!==from || l.port!==port);
+    action(p,'command',[name,{from,port}]);if(['bracket','conveyor','sensor'].includes(asset(p,from)?.type))delete r.sensorWitness;p.links=p.links.filter(l=>l.from!==from || l.port!==port);
   } else if (name==='evidence') {
     const {phase,tester,witness,authority}=args;
     requireValue(['FAT','SAT','Integrated'].includes(phase),'Invalid commissioning phase.');
@@ -333,7 +405,7 @@ export function command(p,name,args={}) {
     if (phase==='Integrated') {
       const recovered=r.pallets.find(pal=>{
         const c=r.cartons.find(c=>c.id===pal.carton), path=c?.recovery;
-        return path?.reason==='Vacuum pickup failed' && path.faultAt<=path.resetAt && path.resetAt<=pal.placedAt
+        return path?.category==='vacuum' && path.faultAt<=path.resetAt && path.resetAt<=pal.placedAt
           && pal.lostAckAt>=pal.placedAt && pal.confirmedAt>=pal.lostAckAt && pal.attempts>=2 && pal.status==='confirmed';
       });
       checks.push({id:'fault-recovery',pass:Boolean(recovered),reason:recovered?'Recovered '+recovered.carton+' and reconciled '+recovered.id+'.':'Inject vacuum failure, repair and reset. Lose the acknowledgement for that pallet, retry and confirm one movement.'});

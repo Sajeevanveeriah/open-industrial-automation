@@ -18,10 +18,10 @@ await mkdir(sqlVendor,{recursive:true});
 for(const name of ['sql-wasm.js','sql-wasm.wasm']) await cp(resolve('node_modules/sql.js/dist',name),resolve(sqlVendor,name));
 await cp(resolve('node_modules/sql.js/LICENSE'),resolve(sqlVendor,'LICENSE.txt'));
 const modules=new Map();
-for(const f of await readdir(target,{recursive:true}))if(/\.(mjs|js)$/.test(f)&&f!=='sw.js'&&!f.includes('occt-import-js')){const path=resolve(target,f),code=await readFile(path,'utf8');modules.set(path,{code,hash:createHash('sha256').update(code).digest('hex').slice(0,12)});}
+for(const f of await readdir(target,{recursive:true}))if(/\.(mjs|js)$/.test(f)&&f!=='sw.js'&&!f.includes('occt-import-js')){const path=resolve(target,f),code=await readFile(path,'utf8');if(!code.trim())throw Error('Empty JavaScript module: '+f);modules.set(path,{code,hash:createHash('sha256').update(code).digest('hex').slice(0,12)});}
 for(const [path,{code}] of modules)await writeFile(path,code.replace(/((?:from\s+|import\s*)['"])(\.\/[^'"]+\.(?:mjs|js))(['"])/g,(all,prefix,file,quote)=>{const dep=modules.get(resolve(dirname(path),file));return dep?`${prefix}${file}?v=${dep.hash}${quote}`:all;}));
 for (const relative of await readdir(resolve(target,'workshop'),{recursive:true})) {
-  if (!relative.endsWith('index.html')) continue;
+  if (!relative.endsWith('.html')) continue;
   const path=resolve(target,'workshop',relative);
   const markup=await readFile(path,'utf8');
   const entry=markup.match(/<script type="module" src="([^"]+)"/);

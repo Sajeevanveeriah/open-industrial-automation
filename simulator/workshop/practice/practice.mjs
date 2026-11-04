@@ -1,4 +1,5 @@
-import {compileProgram,compileLadder,executeScan,newController} from './plc.mjs';
+import {candidate,activate,rollback,observeDeployment,deploymentAssessment,dataset,restoreRegistry} from './registry.mjs';
+import {compileProgram,compileLadder,executeScan,newController,restartController} from './plc.mjs';
 import {loop,sampling,inspection,circuit} from './experiments.mjs';
 import {createProject,step,addCarton,command,scaleAnalogue} from '../model.mjs';
 const $=id=>document.getElementById(id), key='oia-workshop-practice-transfer-v1';
@@ -7,16 +8,38 @@ try{transfer=JSON.parse(sessionStorage.getItem(key)||'null')||{data:{},records:{
 const data=transfer.data&&typeof transfer.data==='object'?transfer.data:{};
 transfer.data=data;
 if(!Array.isArray(data.evidence))data.evidence=[];
-let latest=null, epoch=0;
+let latest=null, epoch=0,models;
+try{models=restoreRegistry(data.models);}catch{models=restoreRegistry();}
+function localButton(name,fn){const b=element('button',name);$('controls').append(b);b.onclick=()=>{try{fn();}catch(e){$('result').textContent=e.message;}};}
+function modelStatus(){data.models=models;remember();}
+
 const ST='IF R_TRIG(IN) THEN\n  COUNT := COUNT + 1;\nEND_IF;';
 const LAD='NO(IN) -> CTU(COUNT)';
+const embeddedSketch=`constexpr uint32_t periodUs = 10000;
+void setup() {
+  Serial.begin(115200);
+  delay(1500);
+  uint32_t previous = micros(), next = previous + periodUs;
+  uint32_t total = 0, worst = 0;
+  for (unsigned sample = 0; sample < 1000; ++sample) {
+    while (int32_t(micros() - next) < 0) {}
+    const uint32_t now = micros(), elapsed = now - previous;
+    total += elapsed;
+    if (elapsed > worst) worst = elapsed;
+    previous = now;
+    next += periodUs;
+  }
+  Serial.print("Mean us "); Serial.println(total / 1000.0);
+  Serial.print("Worst us "); Serial.println(worst);
+}
+void loop() {}`;
 const query='SELECT pallets.id, cartons.lot, postings.quantity\nFROM pallets JOIN cartons ON pallets.carton = cartons.id\nLEFT JOIN postings ON postings.pallet = pallets.id';
 const lab={
  plc:['Can five positive scans represent one carton?', 'Run the input pattern as 100 ms scans. The PLC samples inputs, executes the program once and retains its outputs. Compare a level increment with a rising-edge count. IN is the input mapped by the cell.', 'Use 01111100110. Mark each change from 0 to 1. Try IF IN THEN COUNT := COUNT + 1; END_IF; and compare consecutive counts.'],
  circuit:['Does a 24 V supply prove the load is energised?', 'This isolated direct-current circuit has an ideal supply, switch, fuse and load in series. Voltage is measured across the load, current through it. The independent transmitter sends 4-20 mA for 0-100 engineering units.', 'Close the switch. Predict 24 V / 1,200 ohms = 0.020 A. Open the wire and compare the voltmeter and loop injection. Continuity uses a de-energised circuit.'],
  process:['Can the controller recover after a sudden heat load?', 'Tune a first-order thermal plant and observe temperature, demand and actuator output. The loop runs at 0.1 s, the actuator time constant is 1.2 s and the process time constant is 12 s. A synthetic load step starts at 50 s.', 'Start with proportional action only. Increase integral gain and inspect the steady error. Compare anti-windup at high gain, then try disturbance feed-forward.'],
  embedded:['What frequency does the sampled signal appear to have?', 'A synthetic sine wave represents a sensor. Interrupts schedule samples, a first-order digital filter smooths them and a CPU stall can lose samples. A watchdog restarts state after its timeout.', 'Take 10 samples/s of a 7 Hz signal. The samples mimic a 3 Hz signal. Increase the sample rate beyond twice the source frequency.'],
- optical:['Can the same threshold cope with changed lighting?', 'Four synthetic production runs train a two-feature logistic classifier. A separate later run tests it against a fixed dark-area rule. The image is a generated 32 × 24 monochrome crop. Test lighting changes exposure; offset shifts the crop.', 'Dim the light and compare false rejects with the baseline. Restore the previous settings to roll back. False accepts carry your selected cost.'],
+ optical:['Can the same threshold cope with changed lighting?', 'Four synthetic production runs train a two-feature logistic classifier. A separate later run tests it against a fixed dark-area rule. The image is a generated 32 × 24 monochrome crop. Test lighting changes exposure; offset shifts the crop.', 'Dim the light and compare false rejects with the baseline. Deploy the candidate, measure a later run, then roll back to the previous detector. False accepts carry your selected cost.'],
  condition:['Does occasional bearing impact change spectral-free vibration evidence?', 'Inspect 128 synthetic acceleration samples per window. Root mean square amplitude and crest factor feed a logistic classifier trained on four runs. Compare it with a crest threshold on a separate run. Outputs are advisory.', 'An infrequent high peak can increase crest factor while barely moving RMS amplitude. Compare costs at a high and low threshold.'],
  sql:['Which intake lot contributed to each posted pallet?', 'Run a read-only Structured Query Language (SQL) query on the packaging record. Cartons, pallets, postings and the last 100 scans are available. One result row is one observation; an absent acknowledgement and an absent posting are different conditions.', 'Join pallets.carton to cartons.id, then use a LEFT JOIN from pallets.id to postings.pallet. Use COUNT(*) or SUM(quantity) to reconcile before and after a retry.']
 };
@@ -42,9 +65,10 @@ function configure(){
   if(name==='plc'){
     const lang=f('language','Program language','ST',['ST','Ladder']);
     f('program','Controller source',ST);f('pattern','Test input pattern (0 or 1 per scan)','01111100110');
+    f('restartAt','Restart before sample (0 disables)',0);f('retain','Restart policy','Cold',['Cold','Count retained','Count and blocks retained']);
     f('inputSource','Signal source','Test pattern',['Test pattern','Recorded cell scans']);
     lang.onchange=()=>{$('program').value=lang.value==='ST'?ST:LAD;remember();};
-    const docs=element('details');docs.append(element('summary','Instructions and supported semantics'),element('p','ST: assignments, IF / THEN / ELSE / END_IF, arithmetic, comparisons, AND, OR, NOT. Retained writable tags: COUNT, RUN, TRIP, MODE, OUTPUT. Inputs: IN, I0, I1, ANALOGUE, SETPOINT. R_TRIG(x), F_TRIG(x), TON(x, seconds), SCALE(mA). Blocks update when their expression executes. Ladder: NO(tag), NC(tag), & series, | parallel, -> COIL(tag) or -> CTU(COUNT). Rungs execute top to bottom. Installing a program retains the cell count and resets its block memory. This educational language has no personnel safety function.'));$('controls').append(docs);
+    const docs=element('details');docs.append(element('summary','Instructions and supported semantics'),element('p','ST: assignments, IF / THEN / ELSE / END_IF, arithmetic, comparisons, AND, OR, NOT. Retained writable tags: COUNT, RUN, TRIP, MODE, OUTPUT. Inputs: IN, I0, I1, ANALOGUE, SETPOINT. R_TRIG(x), F_TRIG(x), TON(x, seconds), SCALE(mA). Blocks update when their expression executes. Ladder: NO(tag), NC(tag), & series, | parallel, -> COIL(tag) or -> CTU(COUNT). Rungs execute top to bottom. Installing a program retains the cell count and resets its block memory. Define a reusable instance with FUNCTION_BLOCK EDGE; OUTPUT := R_TRIG(IN); END_FUNCTION_BLOCK; then call EDGE(I0). Every call site owns its block memory; custom blocks accept one IN value and return OUTPUT. Compare restarting with a high input under cold, counter-only and counter-plus-block retention. This educational language has no personnel safety function.'));$('controls').append(docs);
   }
   if(name==='circuit'){
     for(const row of [['supply','Supply (V)',24],['resistance','Load (ohms)',1200],['fuse','Fuse limit (A)',0.1],['closed','Switch closed',true],['broken','Break conductor',false],['mA','Injected transmitter current (mA)',12]])f(...row);
@@ -58,6 +82,28 @@ function configure(){
   if(['optical','condition'].includes(name)){
     if(name==='optical'){f('lighting','Lighting multiplier',1);f('offset','Camera offset (pixels)',0);}
     f('threshold','Rejection threshold (0.01-0.99)',0.5);f('falseAcceptCost','Cost of one false acceptance',5);f('seed','First training run',1);
+  }
+  if(name==='embedded'){
+    const guide=element('details'),link=element('a','Arduino microsecond clock reference');
+    link.href='https://docs.arduino.cc/language-reference/en/functions/time/micros/';link.target='_blank';link.rel='noopener';
+    guide.append(element('summary','Optional USB timing measurement on ESP32 or STM32'),element('p','Use a development board with its own USB interface and an already configured Arduino-compatible board target. Leave all external pins disconnected. Power it only through its documented USB port. Keep this exercise separate from industrial wiring or equipment; supervise younger learners. Record the board, firmware settings and timer resolution in the finding.'),
+      element('p','Use this sketch to sample a free-running 10 ms schedule for 1,000 intervals. Set the simulator sample rate to 100 Hz, or change the sketch period to match an available simulated rate. Serial output occurs after the timing window. Enter the two measured microsecond values below.'),
+      element('pre',embeddedSketch),link);$('controls').append(guide);
+    f('board','Optional supervised low-voltage board','ESP32',['ESP32','STM32']);
+    f('periodUs','Measured sample interval in microseconds','');f('peakUs','Measured worst interval in microseconds','');
+    localButton('Compare my bench measurements',()=>{const desired=1000000/Number($('sampleHz').value),mean=Number($('periodUs').value),peak=Number($('peakUs').value);
+      if(!(mean>0&&peak>=mean&&desired>0))throw Error('Enter measured mean and worst intervals from the board.');
+      $('result').textContent=$('board').value+' user-entered measurements: target '+desired.toFixed(2)+' µs, mean '+mean+' µs, worst '+peak+' µs, mean error '+(100*(mean-desired)/desired).toFixed(2)+'%, peak deviation '+(peak-desired).toFixed(2)+' µs. Capture GPIO transitions or timer timestamps and record instrument resolution in your finding.';remember();});
+  }
+  if(['optical','condition'].includes(name)){
+    f('productionRun','Later production run',6);
+    const select=f('modelID','Registered candidate','baseline',['baseline',...models.releases.filter(m=>m.kind===name).map(m=>m.id)]);
+    localButton('Train and register candidate',()=>{const m=candidate(models,{...inputs(),kind:name});select.append(new Option(m.id,m.id));select.value=m.id;modelStatus();$('result').textContent='Registered '+m.id+'; trained on '+m.train.join(', ')+', validated on '+m.validation+'. Validation cost '+m.cost+'.';});
+    localButton('Deploy selected candidate',()=>{activate(models,select.value);modelStatus();$('result').textContent=models.audit.at(-1);});
+    localButton('Evaluate deployed model',()=>{const a=inputs(),q=observeDeployment(models,{...a,kind:name,run:a.productionRun});modelStatus();$('result').textContent='Production run '+q.run+', active '+q.id+': false accepts '+q.falseAccepts+', false rejects '+q.falseRejects+', weighted cost '+q.cost+'.';});
+    localButton('Roll back deployment',()=>{rollback(models);modelStatus();$('result').textContent=models.audit.at(-1);});
+    localButton('Assess deployment and rollback',()=>{const q=deploymentAssessment(models);$('result').textContent=(q.pass?'Pass. ':'Open. ')+q.reason;});
+    localButton('Export labelled run-separated dataset',()=>{const a=inputs(),d=dataset({...a,kind:name}),url=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:'application/json'})),link=element('a');link.href=url;link.download=name+'-runs.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('result').textContent='Exported '+d.runs.length+' labelled runs. All 144 records retain original run identity and chronological split.';});
   }
   if(name==='sql'){
     f('dataset','Record source','Current packaging cell',['Current packaging cell','Separate training campaign']);
@@ -108,7 +154,7 @@ async function run(){
       if(!seq.length)throw Error('Advance the packaging cell, then return to capture its input trace.');
       let state=newController();
       lines.push('Scan | I0 I1 | Count | Run | Trip | Output');
-      seq.forEach((r,i)=>{state=executeScan(prog,state,{I0:r.I0,I1:r.I1,IN:r.input,ANALOGUE:12,SETPOINT:50});lines.push([r.scan??i+1,Number(r.I0)+'  '+Number(r.I1),state.COUNT,state.RUN,state.TRIP,state.OUTPUT].join(' | '));});
+      seq.forEach((r,i)=>{if(i+1===p.restartAt)state=restartController(state,p.retain);state=executeScan(prog,state,{I0:r.I0,I1:r.I1,IN:r.input,ANALOGUE:12,SETPOINT:50});lines.push([r.scan??i+1,Number(r.I0)+'  '+Number(r.I1),state.COUNT,state.RUN,state.TRIP,state.OUTPUT].join(' | '));});
       const heldOut=['0001110100011110','1000110010101101','1100000010110001'].filter(bits=>bits!==p.pattern).slice(0,2);
       const proof=heldOut.every(bits=>{
         let state=newController(),previous=0,expected=0;

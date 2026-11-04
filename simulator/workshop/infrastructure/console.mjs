@@ -132,3 +132,5 @@ $('import').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{
 render();save();
 
 document.body.inert = false;
+
+window.addEventListener('pageshow',event=>{if(event.persisted){try{const raw=sessionStorage.getItem(transfer);if(raw){rack=importRack(raw);render();}}catch(e){status(e.message);}}});
