@@ -15,6 +15,7 @@ try{
     const started=await page.locator('#clock').innerText();await page.waitForFunction(t=>document.getElementById('clock').textContent!==t,started);
     await click('toggle-play');const paused=await page.locator('#clock').innerText();await page.waitForTimeout(350);assert.equal(await page.locator('#clock').innerText(),paused);
     assert.equal(await page.locator('#asset-select option').count(),22+352+8+4+2);
+    if(await page.locator('#fold-list').getAttribute('aria-expanded')==='false')await click('fold-list');
     await page.locator('#asset-select').selectOption('AMR-02');await click('fault-toggle');assert.equal(await page.locator('#asset-state').innerText(),'FAULT');
     await click('step');assert.match(await page.locator('#asset-details').innerText(),/0 m\/s/);await click('fault-toggle');await click('step');assert.notEqual(await page.locator('#asset-state').innerText(),'FAULT');
     await click('overview');await click('follow');assert.equal(await page.locator('#follow').getAttribute('aria-pressed'),'true');

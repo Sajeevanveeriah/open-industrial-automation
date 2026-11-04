@@ -36,7 +36,7 @@ export function createFacilityScene(container,{onSelect=()=>{},onCamera=()=>{}}=
   ring.position.z=.034;ring.visible=false;root.add(ring);
   const routeLine=new T.Line(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x0b9788,transparent:true,opacity:.85}));routeLine.visible=false;root.add(routeLine);
   const direction=new T.Vector3(),target=v3(-4,-5,1.7),eye=new T.Vector3(),look=new T.Vector3(),focus=new T.Vector3();
-  let model=null,structure='',inventory='',stock=null,stockBases=null,factory=null,roof=null,dockProps=null,selected='',mode='overview',cutaway=true,distance=89,yaw=-2.03,pitch=.60,drag=null,pinch=null,disposed=false,synchronised=false,renderAt=0,followTurn=0,pathSig='',pointerSeq=new Map();
+  let model=null,structure='',inventory='',stock=null,stockBases=null,factory=null,roof=null,dockProps=null,selected='',mode='overview',cutaway=true,distance=89,yaw=-2.03,pitch=.60,drag=null,pinch=null,disposed=false,synchronised=false,renderAt=0,followTurn=0,followManual=false,pathSig='',pointerSeq=new Map();
   let floorHeading=Math.PI*.5,floorPitch=-.02;
   const handler=new AbortController(),listen=(type,fn,opt={})=>canvas.addEventListener(type,fn,{...opt,signal:handler.signal});
   function selectedEntity(){return model&&elements(model).find(e=>e.id===selected);}
@@ -106,7 +106,18 @@ export function createFacilityScene(container,{onSelect=()=>{},onCamera=()=>{}}=
       const h=v.heading+followTurn,front=v3(Math.cos(h),Math.sin(h),0),side=v3(-front.y,front.x,0);
       const loadHeight=v.forkHeightM??.2;
       look.set(v.x,v.y,1.06+Math.max(0,loadHeight-.22)*.45).addScaledVector(front,.57);
-      eye.set(v.x,v.y,1.20+distance*Math.sin(pitch)).addScaledVector(front,-distance*Math.cos(pitch)).addScaledVector(side,distance*.28);
+      if(followManual){
+        eye.set(v.x,v.y,1.20+distance*Math.sin(pitch)).addScaledVector(front,-distance*Math.cos(pitch)).addScaledVector(side,distance*.28);
+      }else if(v.y < -16.5){
+        eye.set(v.x-distance*.68,v.y-distance*.65,1.15+distance*.42);
+        look.set(v.x+.4,v.y+.45,1.02+Math.max(0,loadHeight-.22)*.45);
+      }else if(v.y<=17){
+        const aisle=model.aisles.reduce((best,a)=>Math.abs(a.x-v.x)<Math.abs(best.x-v.x)?a:best,model.aisles[0]);
+        eye.set(aisle.x-.18,Math.max(-21,v.y-distance*.95),1.4+distance*.28);
+        look.set(v.x,v.y+.3,1.04+Math.max(0,loadHeight-.22)*.45);
+      }else{
+        eye.set(v.x-distance*.65,v.y-distance*.75,1.30+distance*.40);
+      }
       if(snap||!synchronised){camera.position.copy(eye);focus.copy(look);}else{const alpha=1-Math.exp(-dt*9);camera.position.lerp(eye,alpha);focus.lerp(look,alpha);}
       target.copy(focus);
     }else if(mode==='floor'){
@@ -141,17 +152,20 @@ export function createFacilityScene(container,{onSelect=()=>{},onCamera=()=>{}}=
   function view(name){
     if(!modes.includes(name))return;const a=selectedEntity(),vehicle=model?.vehicles.find(v=>v.id===selected)||model?.vehicles[0];
     mode=name;canvas.dataset.view=name;
-    if(name==='follow'&&vehicle){if(vehicle.id!==selected){selected=vehicle.id;canvas.dataset.selected=selected;}distance=5.4;pitch=.38;followTurn=.58;synchronised=false;}
+    if(name==='follow'&&vehicle){if(vehicle.id!==selected){selected=vehicle.id;canvas.dataset.selected=selected;}distance=6.3;pitch=.38;followTurn=.58;followManual=false;synchronised=false;}
     else if(name==='floor'){target.set(a?.x??-5,(a?.y??-13)-4,1.68);floorHeading=Math.PI/2;floorPitch=-.02;}
     else if(name==='plan'){target.set(0,-6,0);yaw=-Math.PI/2;pitch=Math.PI/2-.0002;distance=Math.max(110,154/Math.max(.7,camera.aspect));}
     else if(name==='dock'){target.set(a?.trailer?a.x:8,-31,1.4);distance=24;yaw=-2.13;pitch=.40;}
     else if(name==='packing'){target.set(a?.parcels?a.x:19,21,1.15);distance=21;yaw=-2.12;pitch=.37;}
     else if(name==='aisle'){target.set(a?.x??0,a?.y??-8,1.25);distance=13;yaw=-1.76;pitch=.32;}
-    else{target.set(0,-5,1.4);distance=Math.max(92,145/Math.max(1,camera.aspect));yaw=-1.96;pitch=.67;}
+    else{target.set(0,-5,1.4);yaw=-1.83;pitch=.64;target.set(0,-10,1.5);
+      const normal=v3(Math.cos(yaw)*Math.cos(pitch),Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch)),right=new T.Vector3().crossVectors(zAxis,normal).normalize(),vertical=new T.Vector3().crossVectors(normal,right).normalize(),tan=Math.tan(camera.fov*Math.PI/360);
+      distance=20;for(const x of [-68,68])for(const y of [-48,31])for(const z of [0,10]){const p=v3(x,y,z).sub(target);distance=Math.max(distance,p.dot(normal)+Math.max(Math.abs(p.dot(right))/(tan*camera.aspect),Math.abs(p.dot(vertical))/tan)*1.12);}
+}
     draw(true);onCamera(name);
   }
   function saveView(){return {version:1,mode,centre:target.toArray(),distance,yaw:mode==='follow'?followTurn:mode==='floor'?floorHeading:yaw,pitch:mode==='floor'?floorPitch:pitch,cutaway};}
-  function restoreView(raw){const pose=warehouseCamera(raw);if(!pose)return false;mode=pose.mode;target.fromArray(pose.centre);distance=pose.distance;yaw=pose.yaw;pitch=pose.pitch;floorHeading=yaw;floorPitch=pitch;followTurn=yaw;setCutaway(pose.cutaway);canvas.dataset.view=mode;synchronised=false;draw(true);onCamera(mode);return true;}
+  function restoreView(raw){const pose=warehouseCamera(raw);if(!pose)return false;mode=pose.mode;target.fromArray(pose.centre);distance=pose.distance;yaw=pose.yaw;pitch=pose.pitch;floorHeading=yaw;floorPitch=pitch;followTurn=yaw;followManual=mode==='follow';setCutaway(pose.cutaway);canvas.dataset.view=mode;synchronised=false;draw(true);onCamera(mode);return true;}
   function setCutaway(value){cutaway=Boolean(value);if(roof)roof.visible=!cutaway;canvas.dataset.cutaway=String(cutaway);draw();}
   function floorWalk(forward,side){
     target.x=clamp(target.x+Math.cos(floorHeading)*forward-Math.sin(floorHeading)*side,-72,72);
@@ -166,7 +180,7 @@ export function createFacilityScene(container,{onSelect=()=>{},onCamera=()=>{}}=
   }
   function rotate(dx,dy){
     if(mode==='floor'){floorHeading-=dx*.007;floorPitch=clamp(floorPitch-dy*.004,-.48,1.25);}
-    else if(mode==='follow'){followTurn-=dx*.008;pitch=clamp(pitch+dy*.006,.05,1.43);}
+    else if(mode==='follow'){followManual=true;followTurn-=dx*.008;pitch=clamp(pitch+dy*.006,.05,1.43);}
     else{mode='custom';canvas.dataset.view=mode;yaw-=dx*.008;pitch=clamp(pitch+dy*.006,.045,1.567);}
   }
   function zoom(factor){if(mode==='floor')floorWalk((1-factor)*5,0);else distance=clamp(distance*factor,1.15,270);}

@@ -18,6 +18,25 @@ async function verifyFacility(app,page,directory) {
   const count=await page.locator('#asset-select option').count();
   assert.ok(count>10,'Expected plant-wide selectable assets');
   console.log('Facility ready offline:',Math.round(size.width)+' × '+Math.round(size.height)+' CSS px, '+count+' inventory options.');
+  const metrics=await page.evaluate(async()=>{
+    const canvas=document.querySelector('#facility-viewport canvas'),gl=canvas?.getContext('webgl2');
+    const ext=gl?.getExtension('WEBGL_debug_renderer_info');
+    const samples=[];
+    let last;
+    await new Promise(done=>{
+      const frame=now=>{
+        if(last!==undefined)samples.push(now-last);last=now;
+        if(samples.length<90)requestAnimationFrame(frame);else done();
+      };
+      requestAnimationFrame(frame);
+    });
+    const sorted=[...samples].sort((a,b)=>a-b);
+    return {observations:samples.length,meanFrameMs:samples.reduce((a,b)=>a+b,0)/samples.length,p95FrameMs:sorted[Math.ceil(sorted.length*.95)-1],
+      renderer:gl&&ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):'unreported',devicePixelRatio,screen:[innerWidth,innerHeight],visibility:document.visibilityState};
+  });
+  await fs.writeFile(path.join(directory,'facility-metrics.json'),JSON.stringify({...metrics,inventoryOptions:count,offlineEmulated:true,backgroundThrottling:false},null,2));
+  console.log('Native facility RAF measurement:',JSON.stringify(metrics));
+
   const file=path.join(directory,'facility-native-'+Date.now()+'.json');
   await app.evaluate(({dialog},target)=>{
     globalThis.savedFacilityDialogs={open:dialog.showOpenDialog,save:dialog.showSaveDialog};

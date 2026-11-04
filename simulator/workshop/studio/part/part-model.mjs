@@ -43,11 +43,17 @@ const profileKey='oia-workshop-profile-v1';
 export function projectContext(storage){
   const profile=storage.getItem(profileKey)||'Learner',key='oia-workshop-v1:'+encodeURIComponent(profile)+':active',raw=storage.getItem(key),project=raw?loadProject(raw):createProject('blank');
   const part=project.extensions.studioPart??null;if(part)analyse(part);
-  return {profile,key,part,bracket:project.assets.find(a=>a.type==='bracket')?.id??null,signature:JSON.stringify(part)};
+  return {profile,key,origin:project.start,seed:project.seed,history:structuredClone(project.history),part,bracket:project.assets.find(a=>a.type==='bracket')?.id??null,signature:JSON.stringify(part)};
 }
 export function persistPart(storage,context,p,mount=false){
   analyse(p);const fresh=projectContext(storage);
   check(fresh.profile===context.profile,'The active learner changed. Reopen Part Studio before saving.');
+  const sameBranch=fresh.origin===context.origin&&fresh.seed===context.seed&&fresh.history.length>=context.history.length&&context.history.every((row,i)=>{
+    const current=fresh.history[i];
+    if(JSON.stringify(row)===JSON.stringify(current))return true;
+    return i===context.history.length-1&&row[0]==='step'&&current?.[0]==='step'&&current[1]>=row[1];
+  });
+  check(sameBranch,'The active project was replaced or rewound. Reopen Part Studio before saving.');
   check(fresh.signature===context.signature,'The saved part changed in another view. Reopen Part Studio before saving.');
   const raw=storage.getItem(fresh.key),project=raw?loadProject(raw):createProject('blank');const saved=structuredClone(p);
   if(mount){

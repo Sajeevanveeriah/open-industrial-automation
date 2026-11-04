@@ -36,7 +36,7 @@ function select(id,focus=true){
   update(true);
 }
 function setFold(name,open){flags[name]=open;$(name+'-body').hidden=!open;$('fold-'+name).setAttribute('aria-expanded',String(open));}
-for(const name of Object.keys(flags))$('fold-'+name).onclick=()=>{setFold(name,!flags[name]);if(name==='list')activity();};
+for(const name of Object.keys(flags))$('fold-'+name).onclick=()=>{setFold(name,!flags[name]);if(name==='list')activity();else if(name==='journey')journey();else inspect();};
 function dl(pairs){const d=$('asset-details');d.replaceChildren();for(const [key,val] of pairs){d.append(make('dt',key),make('dd',val));}}
 function productRows(items){return items.length?items.slice(-10).map(p=>[p.id,p.sku,p.lot].join(' · ')).join('\n'):'No stock at this location.';}
 function inspect(){

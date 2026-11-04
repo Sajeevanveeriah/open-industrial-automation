@@ -22,3 +22,11 @@ test('profile save merges latest unrelated work, detects stale part and preserve
   c=persistPart(storage,c,{...c.part,kind:'revolve'});const revolved=loadProject(storage.getItem(c.key));near(revolved.assets[1].width,.170);
   assert.throws(()=>persistPart(storage,old,initialPart()),/changed/);storage.setItem('oia-workshop-profile-v1','B');assert.throws(()=>persistPart(storage,c,initialPart()),/learner/);
 });
+
+test('a replacement project with no previous part cannot receive a stale editor mount',()=>{
+  const map=new Map(),storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)},key='oia-workshop-v1:Learner:active';
+  storage.setItem(key,saveProject(createProject('reference',7)));const original=projectContext(storage);
+  const replacement=createProject('blank',73);replacement.extensions.UnrelatedDesign={revision:4};storage.setItem(key,saveProject(replacement));
+  const before=storage.getItem(key);assert.throws(()=>persistPart(storage,original,initialPart(),true),/replaced or rewound/);assert.equal(storage.getItem(key),before);
+  const context=projectContext(storage);addAsset(replacement,'plc','CPU');storage.setItem(key,saveProject(replacement));assert.doesNotThrow(()=>persistPart(storage,context,initialPart(),true));
+});
