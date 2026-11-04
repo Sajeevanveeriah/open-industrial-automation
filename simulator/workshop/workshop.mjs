@@ -1,4 +1,4 @@
-import { createProject, addAsset, configure, connect, addCarton, step, command, inspect, assess, saveProject, loadProject } from './model.mjs';
+import { createProject, addAsset, configure, connect, addCarton, step, command, inspect, assess, saveProject, loadProject as replayProject } from './model.mjs';
 import { chapters, coaching, depths, modes, paths } from './curriculum.mjs';
 
 const el = id => document.getElementById(id);
@@ -39,6 +39,31 @@ function guard(fn) {
 }
 function listen(id, event, handler) { el(id).addEventListener(event, guard(handler)); }
 function submit(id, handler) { listen(id, 'submit', e => { e.preventDefault(); return handler(); }); }
+const recordLike=value=>value!==null && typeof value==='object' && !Array.isArray(value);
+function validateDisplay(p) {
+  const l=p.learning, cad=p.extensions.cad;
+  const bad=reason=>{throw Error('Invalid project '+reason+'.');};
+  if(!depths.includes(l.depth)||!Number.isInteger(l.chapter)||l.chapter<1||l.chapter>chapters.length||
+     !Array.isArray(l.bookmarks)||l.bookmarks.some(n=>!Number.isInteger(n)||n<1||n>chapters.length)||
+     l.notebook.length>4000||(l.mode!==undefined&&!modes.includes(l.mode)))bad('learning record');
+  for(const f of ['videoBlocked','videoRestored'])if(l[f]!==undefined&&typeof l[f]!=='boolean')bad('network learning evidence');
+  if(l.demonstrated!==undefined && (!recordLike(l.demonstrated)||Object.entries(l.demonstrated).some(([id,e])=>
+    !chapters.some(ch=>ch.test===id)||!recordLike(e)||!Number.isSafeInteger(e.scan)||e.scan<0||!Number.isSafeInteger(e.seed)||e.seed<0)))bad('assessment record');
+  if(cad!=null){
+    if(!recordLike(cad)||typeof cad.name!=='string'||!cad.name.trim()||cad.name.length>255||!Number.isFinite(cad.widthM)||cad.widthM<=0)bad('CAD measurement');
+    if(cad.dimensionsM!==undefined&&(!Array.isArray(cad.dimensionsM)||cad.dimensionsM.length!==3||cad.dimensionsM.some(v=>!Number.isFinite(v)||v<0)))bad('CAD dimensions');
+    if(cad.sourceChunks!==undefined&&(!Array.isArray(cad.sourceChunks)||!cad.sourceChunks.length||cad.sourceChunks.some(s=>typeof s!=='string'||!s.length||s.length%4!==0||!/^[A-Za-z0-9+/]+={0,2}$/.test(s))))bad('CAD source bytes');
+    if(cad.upAxis!==undefined&&!['Z','Y','format'].includes(cad.upAxis))bad('CAD up axis');
+    if(cad.sourceUnit!==undefined && cad.sourceUnit!=='format' && ![.001,.0254,1].includes(cad.sourceUnit))bad('CAD scale');
+    if(cad.deviation!==undefined&&(!Number.isFinite(cad.deviation)||cad.deviation<=0))bad('CAD tolerance');
+    if(cad.parts!==undefined&&(!Array.isArray(cad.parts)||cad.parts.some(s=>typeof s!=='string')))bad('CAD part tree');
+  }
+  for(const key of ['practice','layout','robot','electrical','servers','commissioning','infrastructure'])
+    if(p.extensions[key]!=null&&!recordLike(p.extensions[key]))bad(key+' workspace');
+  if(p.assets.some(a=>!Object.hasOwn(types,a.type)||typeof a.id!=='string'))bad('asset schedule');
+  return p;
+}
+function loadProject(text){return validateDisplay(replayProject(text));}
 function storeCurrent() {
   localStorage.setItem(key('active'), saveProject(active));
 }
@@ -255,6 +280,18 @@ function drawCad() {
     actions.append(buttons('Apply measured bracket width',()=>design(()=>{const bracket=active.assets.find(a=>a.type==='bracket');if(!bracket)throw Error('Place a mounting bracket first.');configure(active,bracket.id,{width:cad.widthM});selected=bracket.id;},'Bracket width set from the imported measurement.')));
   }
   const host=window.workshopHost;
+  if(host?.pickStep)actions.append(buttons('Import STEP with FreeCAD',async()=>{
+    const mesh=await host.pickStep(.25);
+    if(!mesh)return;
+    if(typeof mesh.sourceBase64!=='string'||!Array.isArray(mesh.dimensionsM)||!Array.isArray(mesh.triangles)||!Array.isArray(mesh.verticesM)||typeof mesh.kernel!=='string')throw Error('Incomplete CAD conversion result.');
+    if(mesh.sourceBase64.length>1398104)throw Error('The portable CAD bench supports source files up to 1 MiB.');
+    const cad={name:mesh.name,widthM:mesh.dimensionsM[0],dimensionsM:mesh.dimensionsM,upAxis:'Z',sourceUnit:'format',deviation:.00025,
+      parts:[mesh.name],kernel:mesh.kernel,vertices:mesh.verticesM.length,triangles:mesh.triangles.length,sourceChunks:mesh.sourceBase64.match(/.{1,40960}/g)};
+    const candidate={...active,extensions:{...active.extensions,cad}};
+    validateDisplay(candidate);saveProject(candidate);
+    active.extensions=candidate.extensions;drawCad();persist();
+    tell(cad.name+' measured with '+cad.kernel+'. Use Apply measured bracket width to install.');
+  }));
   if(host?.startPilot){const native=element('a','Windows simulation engines');native.href='./native/index.html';actions.append(native);}
   if(host?.engineStatus)actions.append(buttons('Detect Isaac Sim',async()=>{const result=await host.engineStatus();info.append(element('p',result.detail));}));
 }
@@ -327,24 +364,22 @@ window.addEventListener('pagehide',()=>{pause();persist();});
 function restoreBench() {
   for(const [name,slot] of [['rack','infrastructure'],['cad','cad'],['practice','practice'],['commissioning','commissioning'],['robot','robot'],['layout','layout'],['electrical','electrical'],['servers','servers']]){
     const key=name==='servers'?'oia-workshop-servers-v1':'oia-workshop-'+name+'-transfer-v1', value=sessionStorage.getItem(key);if(!value)continue;
+    sessionStorage.removeItem(key);
     if(value.length>2*1024*1024)throw Error('Returned bench data exceeds project limit.');
     const data=JSON.parse(value), imported=['practice','servers'].includes(name)?data.data:name==='layout'?(data?.layout??data):data;
     if(name==='cad'&&(!Number.isFinite(data.widthM)||data.widthM<=0))throw Error('Returned CAD measurement is missing.');
-    const candidate={...active,extensions:{...active.extensions,[slot]:imported}};
-    saveProject(candidate);
+    const candidate=loadProject(saveProject({...active,extensions:{...active.extensions,[slot]:imported}}));
     if(name==='practice' && data.install) {
       sessionStorage.removeItem(key);
-      if(!active.assets.some(a=>a.type==='plc'))throw Error('Place a PLC before installing a program.');
-      command(active,'installProgram',{source:data.install.source,language:data.install.language});
+      if(!candidate.assets.some(a=>a.type==='plc'))tell('Experiment retained. Place a PLC before installing the program.');
+      else command(candidate,'installProgram',{source:data.install.source,language:data.install.language});
     }
     if(name==='layout' && data?.install) {
       const {bracket,conveyor,position,length}=data.install;
       if(current(bracket)?.type!=='bracket'||current(conveyor)?.type!=='conveyor')throw Error('Layout mount references a different cell.');
-      const next=loadProject(saveProject(candidate));
-      configure(next,conveyor,{length});configure(next,bracket,{x:position});
-      active=next;
+      configure(candidate,conveyor,{length});configure(candidate,bracket,{x:position});
     }
-    active.extensions=candidate.extensions;sessionStorage.removeItem(key);
+    saveProject(candidate);active=candidate;sessionStorage.removeItem(key);
   }
 }
 active=createProject('blank');

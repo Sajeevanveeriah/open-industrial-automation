@@ -12,8 +12,9 @@ const base = process.env.OIA_BASE_URL || await new Promise(done => {
   server = createServer(async (req,res)=>{
     try {
       const path=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-      const file=resolve(root,'.'+path+(path.endsWith('/')?'index.html':''));
-      if(!file.startsWith(root+sep))throw Error();
+      const baseRoot=process.env.OIA_WORKSHOP_SOURCE&&path.startsWith('/vendor/')?resolve('dist'):root;
+      const file=resolve(baseRoot,'.'+path+(path.endsWith('/')?'index.html':''));
+      if(!file.startsWith(baseRoot+sep))throw Error();
       const content=await readFile(file);res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');res.end(content);
     } catch { res.writeHead(404);res.end(); }
   });
@@ -61,7 +62,12 @@ try {
   const report=JSON.parse(await readFile(await download.path(),'utf8'));assert.equal(report.tests.length,3);assert.equal(report.postings.length,1);
   const imported=Buffer.from(JSON.stringify(report.project));await page.locator('#file').setInputFiles({name:'portable.oia.json',mimeType:'application/json',buffer:imported});await click('Replace cell');
   assert.match(await page.locator('#records').textContent(),/ORDER-QA/);
-  await page.reload();assert.match(await page.locator('#records').textContent(),/PAL-1/);
+  const malicious={...report.project,extensions:{cad:{name:{toString:1},widthM:.1}}};
+  await page.locator('#file').setInputFiles({name:'bad.oia.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(malicious))});
+  await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('Invalid project CAD'));
+  assert.equal(await page.locator('#confirm').isVisible(),false);
+  await click('Save locally');await page.reload();await page.waitForFunction(()=>document.getElementById('records')?.textContent.includes('PAL-1'));
+  const afterBad=page.waitForEvent('download');await click('Export project');assert.deepEqual(JSON.parse(await readFile(await (await afterBad).path(),'utf8')),report.project);
   const started=performance.now();await click('Step 1 s');console.log('10-scan UI action including Playwright: '+(performance.now()-started).toFixed(1)+' ms.');
   for(const width of [1440,390]) {
     await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -93,8 +99,11 @@ try {
   await openTools();await page.getByRole('link',{name:'Applied engineering bench'}).click();await page.locator('#run').click();await page.locator('#finding').fill('The first high scan increments once.');await page.locator('#capture').click();await page.locator('#apply').click();await page.locator('a[href="../index.html"]').first().click();
   await page.waitForFunction(()=>document.getElementById('diagnostics')?.textContent.includes('Active PLC program: ST'));
   await page.locator('#case-link').click();await page.locator('a[href="../index.html"]').first().click();
+  await openTools();await page.getByRole('link',{name:'Server commissioning'}).click();await page.locator('#execute').waitFor();await page.locator('a[href="../index.html"]').first().click();
+  await openTools();await page.getByRole('link',{name:'Open CAD import bench'}).click();await page.waitForLoadState('load');await page.waitForFunction(()=>typeof document.getElementById('generate')?.onclick==='function');await page.locator('#generate').click();await page.locator('#mount').click();
+  await openTools();await page.getByRole('link',{name:'Open CAD import bench'}).click();await page.locator('#reopen').click();await page.locator('#mount').click();
   const combined=page.waitForEvent('download');await click('Export project');const portable=JSON.parse(await readFile(await (await combined).path(),'utf8'));
-  for(const slot of ['layout','electrical','practice','robot','infrastructure','commissioning'])assert.ok(portable.extensions[slot],slot+' missing');
+  for(const slot of ['layout','electrical','practice','robot','infrastructure','commissioning','servers','cad'])assert.ok(portable.extensions[slot],slot+' missing');
   assert.equal(portable.learning.demonstrated.video,undefined,'One successful network path must not earn fault diagnosis mastery.');
   assert.ok(portable.learning.demonstrated.pallet);assert.ok(portable.learning.demonstrated.erp);
   await page.locator('#profile-name').fill('Another learner');await click('Switch profile');assert.equal(await page.locator('#asset option').count(),0);

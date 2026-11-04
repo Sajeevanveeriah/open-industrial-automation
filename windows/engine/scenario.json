@@ -1,0 +1,9 @@
+{
+ "schema":"oia.engine-scenario/1",
+ "scenario":"packaging-pilot/1",
+ "units":"SI","upAxis":"Z","frame":"cell",
+ "stepSeconds":0.016666666666666666,"steps":240,
+ "assetIds":{"belt":"belt","carton":"carton","robot":"robot","photoeye":"eye"},
+ "startXM":0.4,"beltSpeedMps":0.25,"sensorXM":1.0,"cartonLengthM":0.30,
+ "robotTravelRad":1.5707963267948966,"robotTravelSeconds":4
+}

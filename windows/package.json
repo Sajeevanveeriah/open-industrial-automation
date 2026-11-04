@@ -1,0 +1,63 @@
+{
+  "name": "open-industrial-workshop",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Offline industrial engineering workshop",
+  "author": "Open Industrial Automation",
+  "main": "main.cjs",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-builder --win nsis --x64",
+    "test": "node --test native.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "org.openindustrialautomation.workshop",
+    "productName": "Industrial Engineering Workshop",
+    "artifactName": "OIA-Workshop-${version}-Windows-x64.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "*.cjs",
+      "!*.test.cjs",
+      "!verify.cjs",
+      "!*.test-helper.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "site"
+      },
+      {
+        "from": "convert.py",
+        "to": "convert.py"
+      },
+      {
+        "from": "engine",
+        "to": "engine"
+      },
+      {
+        "from": "engine-ui",
+        "to": "site/workshop/native"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false
+    }
+  }
+}
