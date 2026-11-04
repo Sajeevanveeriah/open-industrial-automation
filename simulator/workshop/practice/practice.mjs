@@ -154,4 +154,4 @@ $('capture').onclick=()=>{if(!latest||!$('finding').value.trim()){$('status').te
   data.evidence.push({...latest,finding:$('finding').value.slice(0,800)});save();evidence();$('status').textContent='Captured with the current workshop project.';};
 configure();evidence();
 
-document.querySelector('main').inert = false;
+document.body.inert = false;

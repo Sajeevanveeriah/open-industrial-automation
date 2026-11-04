@@ -26,4 +26,4 @@ $('edit').onclick=act(()=>{const clone=structuredClone(net),p=clone.parts.find(q
 $('read').onclick=act(()=>{const r=sample(net,coils);coils=r.coils;const a=r.voltage[$('a').value],b=r.voltage[$('b').value];$('result').textContent=a==null||b==null?'Voltage undefined: floating probe.':(a-b).toFixed(3)+' V DC';$('outputs').textContent='Supply '+r.supplyAmps.toFixed(3)+' A\nEnergised coils: '+(r.coils.join(', ')||'none')+'\nActive loads: '+(r.live.join(', ')||'none')+'\n'+Object.entries(r.currents).map(([id,i])=>id+': '+(1000*i).toFixed(2)+' mA').join('\n');settings();});
 $('back').onclick=save;
 
-document.querySelector('main').inert = false;
+document.body.inert = false;
