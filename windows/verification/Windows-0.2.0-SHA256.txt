@@ -1,1 +1,1 @@
-19d55c7cce1245bd75244fe8226c2326a7ff19977a40d7846e5861c6c0545a78  OIA-Workshop-0.2.0-Windows-x64.exe
+16c02fe299cd5cf99dced984b6d8e9a8bb824ba4d8657d3e1668b090fff31fb8  OIA-Workshop-0.2.0-Windows-x64.exe

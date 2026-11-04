@@ -36,6 +36,13 @@ try{
   await page.locator('#proxy').fill('-0.5,-0.5 0.5,-0.5 -0.5,0.5');await page.locator('#set-proxy').click();await page.locator('#capture-key').click();
   await page.locator('#joint-value').fill('1.5');await page.locator('#drive-form button').first().click();await page.locator('#key-time').fill('2');await page.locator('#capture-key').click();
   await page.locator('#scrub-motion').fill('1');assert.match(await page.locator('#motion-reading').innerText(),/bracket 1 m/);
+  await page.evaluate(()=>{
+    const real=window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame=callback=>{
+      window.requestAnimationFrame=real;
+      return real(timestamp=>callback(timestamp-500));
+    };
+  });
   await page.locator('#play-motion').click();await page.waitForFunction(()=>document.getElementById('motion-reading').textContent.startsWith('2.000 s'));assert.match(await page.locator('#motion-reading').innerText(),/bracket 1.5 m/);
   await page.locator('#check-sweep').click();assert.match(await page.locator('#sweep-reading').innerText(),/Clear|collision|unresolved/);await page.locator('#return').click();
   await page.locator('#case-link').click();await page.waitForLoadState('load');await page.locator('#case-predict').fill('6');await page.locator('#case-reason').fill('Constrain recovery and verify data retrieval.');await page.locator('#case-test').click();assert.match(await page.locator('#case-observed').innerText(),/recovered 6 min/);
