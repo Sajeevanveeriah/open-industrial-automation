@@ -6,7 +6,7 @@ if (['workshop://local/workshop/index.html','workshop://local/workshop/native/in
     pickStep:tolerance => ipcRenderer.invoke('cad:step',tolerance),
     pilotStatus:()=>ipcRenderer.invoke('engine:poll'),
     locatePilot:()=>ipcRenderer.invoke('engine:locate'),
-    startPilot:()=>ipcRenderer.invoke('engine:start'),
+    startPilot:(camera=false)=>ipcRenderer.invoke('engine:start',camera),
     stopPilot:()=>ipcRenderer.invoke('engine:stop'),
     importPilot:()=>ipcRenderer.invoke('engine:import'),
     engineStatus:() => ipcRenderer.invoke('engine:status')

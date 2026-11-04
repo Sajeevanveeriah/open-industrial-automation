@@ -11,12 +11,13 @@ let runtime = 'C:\\isaacsim';
 let busy = false;
 let pilot;
 const enginePage = 'workshop://local/workshop/native/index.html';
-const {Pilot,validateRun} = require('./engine.cjs');
+const {Pilot} = require('./engine.cjs');
 
 function hostAction(name, handler) {
   ipcMain.handle(name, async (event, ...args) => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
         !['/workshop/index.html','/workshop/native/index.html'].includes(new URL(event.senderFrame.url).pathname) || !event.senderFrame.url.startsWith('workshop://local/')) throw Error('Workshop window required.');
+    if (name==='engine:poll' || name==='engine:status') return handler(...args);
     if (busy) throw Error('Finish the current file operation first.');
     busy = true;
     try {return await handler(...args);} finally {busy = false;}
@@ -79,14 +80,15 @@ async function run() {
   hostAction('engine:locate',locate);
   hostAction('engine:poll',()=>pilot.status());
   hostAction('engine:stop',()=>pilot.stop());
-  hostAction('engine:start',async()=>{
+  hostAction('engine:start',async(camera=false)=>{
+    if (typeof camera!=='boolean') throw Error('Camera option must be true or false.');
     if (!(await engineStatus(runtime)).available) throw Error('Locate a supported NVIDIA workstation installation before launch.');
     const consent=await dialog.showMessageBox(window,{type:'question',message:'Launch the bundled four-second pilot in NVIDIA Kit?',detail:runtime,buttons:['Cancel','Launch'],defaultId:0,cancelId:0});
-    if(consent.response===1) await pilot.start(runtime);
+    if(consent.response===1) await pilot.start(runtime,camera);
   });
   hostAction('engine:import',async()=>{
     const selected=await dialog.showOpenDialog(window,{properties:['openFile'],filters:[{name:'Engine recording',extensions:['json']}]});
-    return selected.canceled?null:validateRun(JSON.parse((await readBounded(selected.filePaths[0],2097152)).toString()));
+    return selected.canceled?null:pilot.compare(JSON.parse((await readBounded(selected.filePaths[0],2097152)).toString()));
   });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {label:'Workshop',submenu:[
@@ -127,6 +129,10 @@ async function run() {
     while(Date.now()<until) {
       const ready=await window.webContents.executeJavaScript("Boolean(document.querySelector('#mode option') && document.querySelector('#place button') && document.querySelector('h1')?.textContent)").catch(()=>false);
       if (ready) return true;
+      if (window.webContents.getURL()!==start && window.webContents.getURL().startsWith('workshop://local/')) {
+        const navigated=await window.webContents.executeJavaScript("Boolean(document.readyState==='complete' && document.querySelector('main') && !document.body.inert)").catch(()=>false);
+        if (navigated) return true;
+      }
       await new Promise(resolve=>setTimeout(resolve,100));
     }
     return false;

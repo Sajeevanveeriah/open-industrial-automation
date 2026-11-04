@@ -1,6 +1,6 @@
 {
   "name": "open-industrial-workshop",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "Offline industrial engineering workshop",
   "author": "Open Industrial Automation",
@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "package": "electron-builder --win nsis --x64",
-    "test": "node --test native.test.cjs"
+    "test": "node --test native.test.cjs recovery.test.cjs",
+    "test:crash": "node verify-recovery.cjs"
   },
   "devDependencies": {
     "electron": "45.2.2",
@@ -26,7 +27,8 @@
       "*.cjs",
       "!*.test.cjs",
       "!verify.cjs",
-      "!*.test-helper.cjs"
+      "!*.test-helper.cjs",
+      "!verify-*.cjs"
     ],
     "extraResources": [
       {

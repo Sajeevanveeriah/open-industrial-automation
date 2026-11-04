@@ -90,12 +90,25 @@ async function convertStep(file, converter, toleranceMM = 0.2) {
   return {...await result, name:path.basename(file), sourceBase64:source.toString('base64')};
 }
 
+let adapterQuery;
+function adapterDetails(){
+  if(!adapterQuery)adapterQuery=new Promise(resolve=>{
+    const exe=path.join(process.env.SystemRoot || 'C:\\Windows','System32','nvidia-smi.exe');
+    execFile(exe,['--query-gpu=memory.total,driver_version,name','--format=csv,noheader,nounits'],{timeout:4000,windowsHide:true,encoding:'utf8'},(err,stdout)=>{
+      if(err) return resolve(' GPU inventory unavailable.');
+      const rows=stdout.trim().split(/\r?\n/).map(line=>line.split(',').map(s=>s.trim())).filter(r=>r.length>=3&&/^\d+$/.test(r[0]));
+      resolve(rows.map(([memory,driver,...name])=>' '+name.join(', ')+' · '+memory+' MiB · driver '+driver+(Number(memory)*1048576<16e9?' · below the 16 GB listed memory for the 6.2 pilot target.':'.')).join(''));
+    });
+  });
+  return adapterQuery;
+}
 async function engineStatus(root = 'C:\\isaacsim') {
+  const hardware=await adapterDetails();
   const markers = ['isaac-sim.bat', 'kit/kit.exe'];
   for (const marker of markers) {
-    if (!await fs.stat(path.join(root, marker)).then(s => s.isFile()).catch(() => false)) return {available:false, detail:'Isaac Sim workstation runtime was not found at ' + root + '. The built-in engine is available offline.'};
+    if (!await fs.stat(path.join(root, marker)).then(s => s.isFile()).catch(() => false)) return {available:false, detail:'Isaac Sim workstation runtime was not found at ' + root + '. The built-in engine is available offline.'+hardware};
   }
-  return {available:true, detail:'Isaac Sim workstation files detected at ' + root + '. Live engine compatibility requires a separate run.'};
+  return {available:true, detail:'Isaac Sim workstation files detected at ' + root + '. Live engine compatibility requires a separate run.'+hardware};
 }
 
 module.exports = {readBounded, projectText, projectLimit, saveAtomic, resolveAsset, convertStep, engineStatus};

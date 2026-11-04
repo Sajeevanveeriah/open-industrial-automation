@@ -17,7 +17,18 @@ function tokens(source) {
   return list;
 }
 export function compileProgram(text) {
-  const list=tokens(text);let index=0, memory=0;
+  if(typeof text!=='string'||text.length>1600)fail('Program limit is 1,600 characters.');
+  const definitions=new Map();
+  let remaining=text.trimStart();
+  while(/^FUNCTION_BLOCK\b/i.test(remaining)){
+    const m=/^FUNCTION_BLOCK\s+([A-Za-z_][A-Za-z_0-9]*)\s*;([\s\S]*?)END_FUNCTION_BLOCK\s*;/i.exec(remaining);
+    if(!m||definitions.size>=4)fail('Use up to four FUNCTION_BLOCK name; ... END_FUNCTION_BLOCK; definitions.');
+    const name=m[1].toUpperCase();
+    if(definitions.has(name)||variables.includes(name)||blocks.includes(name)||Object.hasOwn(constants,name))fail('Choose a unique function block name.');
+    if(/FUNCTION_BLOCK/i.test(m[2]))fail('Nested function blocks are unsupported.');
+    definitions.set(name,compileProgram(m[2]));remaining=remaining.slice(m[0].length).trimStart();
+  }
+  const list=tokens(remaining);let index=0, memory=0;
   const current=()=>list[index];
   function take(expected) {
     if(current()!==expected) fail('Expected '+expected+' at token '+(index+1)+'.');
@@ -29,6 +40,9 @@ export function compileProgram(text) {
     let node;
     if(token==='NOT'||token==='-') node={op:'unary',fn:token,a:expression(6,depth+1)};
     else if(token==='(') {node=expression(0,depth+1);take(')');}
+    else if(definitions.has(token)){
+      take('(');const a=expression(0,depth+1);take(')');node={op:'instance',a,program:definitions.get(token),slot:memory++};
+    }
     else if(blocks.includes(token)) {
       take('(');const args=[expression(0,depth+1)];
       while(current()===',') {index++;args.push(expression(0,depth+1));}
@@ -83,6 +97,11 @@ export function executeScan(program,state,inputs,dt=0.1) {
     if(node.op==='literal') return node.value;
     if(node.op==='read') return Number(s[node.key]??0);
     if(node.op==='unary') {const v=read(node.a);return node.fn==='NOT'?Number(!v):-v;}
+    if(node.op==='instance'){
+      const v=read(node.a),instance=executeScan(node.program,s.memory[node.slot]??newController(),{IN:v},dt);
+      s.memory[node.slot]=instance;
+      return instance.OUTPUT;
+    }
     if(node.op==='block') {
       const [v,delay]=node.args.map(read),prev=s.memory[node.slot]??0;
       if(node.fn==='SCALE') return (v-4)*6.25;
@@ -113,4 +132,12 @@ export function executeScan(program,state,inputs,dt=0.1) {
   }
   run(program);
   return Object.fromEntries(['COUNT','RUN','TRIP','MODE','OUTPUT','memory'].map(k=>[k,s[k]]));
+}
+
+export function restartController(current,policy){
+  if(!['Cold','Count retained','Count and blocks retained'].includes(policy))fail('Unknown restart policy.');
+  const fresh=newController();
+  if(policy!=='Cold')fresh.COUNT=current.COUNT;
+  if(policy==='Count and blocks retained')fresh.memory=structuredClone(current.memory);
+  return fresh;
 }

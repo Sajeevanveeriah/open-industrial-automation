@@ -1,3 +1,4 @@
+import {featureBench} from './feature-bench.mjs';
 import {box,bounds,stl,gltf,urdf,usda} from './geometry.mjs';
 const $=id=>document.getElementById(id);
 let source=null, parts=[], tree='', worker, epoch=0;
@@ -87,9 +88,13 @@ $('generate').onclick=()=>{
 };
 $('mount').onclick=()=>{try{sessionStorage.setItem('oia-workshop-cad-transfer-v1',JSON.stringify(source));location.assign('../index.html');}catch{ $('status').textContent='Session storage is full. Use a smaller source file.'; }};
 
+const openFeature=featureBench((mesh,record)=>{reset('');present(mesh.name,null,[mesh],mesh.name,'Z');Object.assign(source,record);});
 try {
   const prior=JSON.parse(sessionStorage.getItem('oia-workshop-cad-source-v1')||'null');
-  if(prior?.sourceChunks){$('reopen').hidden=false;$('reopen').onclick=()=>load(false,prior);}
+  if(prior?.featureBook){
+    $('reopen').hidden=false;$('reopen').onclick=()=>{try{openFeature(prior);}catch(error){reset(error.message);}};
+  }
+  else if(prior?.sourceChunks){$('reopen').hidden=false;$('reopen').onclick=()=>load(false,prior);}
   else if(prior?.name==='Parametric bracket'&&Number.isFinite(prior.widthM)){$('reopen').hidden=false;$('reopen').onclick=()=>{$('width').value=prior.widthM*1000;$('generate').click();};}
 } catch { $('status').textContent='Stored CAD metadata could not be read.'; }
 

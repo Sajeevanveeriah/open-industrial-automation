@@ -52,3 +52,17 @@ test('backup taken after the last write establishes the true recoverable point',
   operate(s,'restore',{name:'DR'});operate(s,'advance',{seconds:12});operate(s,'route',{name:'DR'});
   assert.equal(s.lastRecovery.rpo,10);assert.equal(s.lastRecovery.rto,12);assert.deepEqual(s.lastRecovery.missing,['TX-2']);
 });
+test('OS guests on shared hypervisor fail together; separate domain and mirrored member recovery preserve committed identity',async()=>{
+  const {faultDomainChecks}=await import('../simulator/workshop/servers/server-model.mjs');const s=make();
+  operate(s,'write',{user:'engineer',label:'LOT-X'});operate(s,'replicate',{name:'DR'});
+  for(const [name,os] of [['PRIMARY','Linux'],['DR','Windows']])operate(s,'platform',{name,os,domain:'HV-A'});
+  assert.equal(faultDomainChecks(s)[1][1],false);operate(s,'hypervisor',{domain:'HV-A',on:false});
+  assert.equal(probe(s),'Hypervisor domain offline');operate(s,'route',{name:'DR'});assert.equal(probe(s),'Hypervisor domain offline');
+  operate(s,'hypervisor',{domain:'HV-A',on:true});operate(s,'platform',{name:'PRIMARY',os:'Linux',domain:'HV-B'});
+  assert.equal(faultDomainChecks(s)[1][1],true);operate(s,'mirror',{name:'DR'});operate(s,'diskFault',{name:'DR',member:1});
+  assert.equal(probe(s),'Healthy');assert.equal(operate(s,'read',{user:'operator'}),'Read 1 production records');
+  operate(s,'replaceDisk',{name:'DR',member:1});assert.equal(faultDomainChecks(s)[0][1],true);
+  operate(s,'backup',{name:'PRIMARY'});operate(s,'diskFault',{name:'DR',member:1});operate(s,'diskFault',{name:'DR',member:2});
+  assert.equal(probe(s),'Data volume unavailable');assert.equal(s.hosts[1].rows.length,0);
+  operate(s,'replaceDisk',{name:'DR',member:1});operate(s,'restore',{name:'DR'});assert.equal(s.hosts[1].rows[0].id,'TX-1');assert.deepEqual(importServers(exportServers(s)),s);
+});

@@ -1,3 +1,4 @@
+import {lifecycleBench} from './lifecycle-bench.mjs';
 const $=id=>document.getElementById(id);
 const inbound='oia-case-register-v1', outbound='oia-workshop-commissioning-transfer-v1';
 const definitions=[
@@ -56,4 +57,9 @@ $('return').onclick=e=>{try{store();}catch(err){e.preventDefault();$('status').t
 $('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(reg,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='commissioning-register.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);};
 show();
 
+const saveCase=state=>{
+ const next={...reg,lifecycle:state};const json=JSON.stringify(next);if(json.length>200000)throw Error('Register is full. Export before starting another.');
+ sessionStorage.setItem(packet?outbound:key,json);reg=next;
+};
+try{lifecycleBench(reg.lifecycle,saveCase);}catch{lifecycleBench(null,saveCase);$('case-status').textContent='Invalid lifecycle record rejected.';}
 document.body.inert = false;

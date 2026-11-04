@@ -1,0 +1,30 @@
+name: Workshop browser compatibility
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    if: github.event.repository.private == false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            browser: safari
+          - os: ubuntu-24.04
+            browser: firefox
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - if: matrix.browser == 'safari'
+        run: sudo safaridriver --enable
+      - run: python3 scripts/workshop-webdriver.py ${{ matrix.browser }}

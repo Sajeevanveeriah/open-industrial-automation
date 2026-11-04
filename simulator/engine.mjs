@@ -4,7 +4,17 @@ import {COMPONENTS, clamp, mass, zeroComponents, addComponents, splitParcel, the
 
 const copy = value => JSON.parse(JSON.stringify(value));
 const finite = (value, min, max) => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
-const recipeFor = id => RECIPES.find(r => r.id === id);
+export const plantRecipes = s => [...RECIPES,...(s.customRecipes||[])];
+const recipeFor = (id,s) => RECIPES.find(r=>r.id===id)||s?.customRecipes?.find(r=>r.id===id);
+function recipeIssue(s,p){
+ if((s.customRecipes?.length||0)>=24)return 'At most 24 immutable learner recipe revisions per project.';
+ if(typeof p.name!=='string'||!/^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/.test(p.name))return 'Use 1-40 letters, digits, spaces or hyphens for the recipe name.';
+ const ranges={cutMm:[4,25],blanchC:[65,95],fryC:[150,190],freezeC:[-45,-20],freezeS:[60,1500],coatPct:[0,12],bagKg:[0.1,25]};
+ if(Object.keys(p).some(k=>!Object.hasOwn(ranges,k)&&!['name','skinOn','formed'].includes(k)))return 'Unknown recipe parameter.';
+ for(const [key,[min,max]] of Object.entries(ranges))if(!finite(p[key],min,max))return key+' must be between '+min+' and '+max+'.';
+ if(!Number.isInteger(p.freezeS)||typeof p.skinOn!=='boolean'||typeof p.formed!=='boolean')return 'Use whole freezing seconds and on/off preparation flags.';
+ return null;
+}
 const stageFor = (s,id) => s.stages.find(x => x.id === id);
 const faultFor = id => FAULTS.find(x => x.id === id);
 const has = (s,id) => s.faults.includes(id);
@@ -18,12 +28,12 @@ const yes = reason => ({ok:true,reason});
 const roles = ['instructor','operator','engineer','quality','maintenance','reviewer'];
 const permissions = {
  operator:['start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile'],
- engineer:['start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','feed','setpoint','tune','speed','selectRecipe','reconcile'],
+ engineer:['authorRecipe','start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','feed','setpoint','tune','speed','selectRecipe','reconcile'],
  quality:['ack','sample','challenge','release','reject','approveRaw','rejectRaw','recall','hold','estop'],
  maintenance:['ack','hold','estop','isolate','unisolate','repair','clean','restock'],
  reviewer:[]
 };
-const commandNames = new Set(['system','role','start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
+const commandNames = new Set(['authorRecipe','system','role','start','stop','hold','resume','drain','estop','releaseEstop','resetTrip','ack','receive','order','selectRecipe','dispatch','reconcile','feed','setpoint','tune','speed','sample','challenge','release','reject','approveRaw','rejectRaw','recall','isolate','unisolate','repair','clean','restock','fault','clearFault']);
 
 function event(s, kind, message, details = {}) {
   const item = {id:`EV-${++s.counters.event}`,at:s.time,kind,message,details};
@@ -174,11 +184,12 @@ function validateCommand(s,type,p) {
     case 'setpoint': {const bounds={blanch:[60,95],fry:[155,195],freeze:[-45,-18]};return Object.hasOwn(bounds,p.id) && finite(p.value,...bounds[p.id]) ? null : 'Setpoint is outside its finite model range';}
     case 'tune': return Object.hasOwn(s.loops,p.id) && finite(p.kp,0,20) && finite(p.ki,0,1) ? null : 'PI gains require Kp 0-20 and Ki 0-1';
     case 'speed': return st && finite(p.value,0.5,1.2) ? null : 'Select equipment and a speed multiplier of 0.5-1.2';
-    case 'selectRecipe': return !recipeFor(p.id) ? 'Unknown recipe' : s.mode !== 'STOPPED' || wip(s)>1e-6 || activeOrder(s) ? 'Recipe changes require stopped, empty equipment with no retained campaign; drain it first' : null;
+    case 'authorRecipe':return recipeIssue(s,p);
+    case 'selectRecipe': return !recipeFor(p.id,s) ? 'Unknown recipe' : s.mode !== 'STOPPED' || wip(s)>1e-6 || activeOrder(s) ? 'Recipe changes require stopped, empty equipment with no retained campaign; drain it first' : null;
     case 'receive': return finite(p.kg,1000,50000) && finite(p.dryMatter,10,35) && finite(p.sugar,0,2) && typeof p.source === 'string' && p.source.trim().length > 0 && p.source.length <= 100 ? null : 'Receipt requires 1,000-50,000 kg, 10-35% dry matter, 0-2% sugar and a source label';
     case 'approveRaw': return !raw || raw.grade !== 'HOLD' ? 'Select a held raw lot' : raw.recalled ? 'Recalled raw stock cannot be approved; reject it or complete a separately engineered investigation' : raw.dryMatter < 18 || raw.dryMatter > 25 || raw.sugar > 0.35 ? 'Raw sample fails the illustrative specification' : null;
     case 'rejectRaw': return raw && raw.kg > 0 && raw.grade === 'HOLD' ? null : 'Only a held raw lot with remaining stock can be rejected';
-    case 'order': return recipeFor(p.recipe) && finite(p.rawKg,1000,200000) && s.orders.length < 100 ? null : 'Campaign requires a known recipe and 1,000-200,000 kg raw allocation; maximum 100 orders';
+    case 'order': return recipeFor(p.recipe,s) && finite(p.rawKg,1000,200000) && s.orders.length < 100 ? null : 'Campaign requires a known recipe and 1,000-200,000 kg raw allocation; maximum 100 orders';
     case 'sample': return lot && lot.pendingKg > 0 ? null : 'Select finished stock awaiting a quality decision';
     case 'challenge': return has(s,'metal-detect') ? 'Challenge failed while inspection fault is present' : null;
     case 'release':
@@ -245,10 +256,16 @@ export function act(s,type,payload = {}) {
     case 'setpoint':s.loops[p.id].sp=p.value;break;
     case 'tune':s.loops[p.id].kp=p.kp;s.loops[p.id].ki=p.ki;break;
     case 'speed':st.speed=p.value;break;
+    case 'authorRecipe': {
+      const library=s.customRecipes??(s.customRecipes=[]),revision=1+library.filter(r=>r.recipeName===p.name).length;
+      const id='USR-'+String(library.length+1).padStart(3,'0');
+      library.push({id,name:p.name+' / '+revision,recipeName:p.name,revision,cutMm:p.cutMm,blanchC:p.blanchC,fryC:p.fryC,freezeC:p.freezeC,freezeS:p.freezeS,freezeTauS:450*(p.cutMm/9)**2,coatFraction:p.coatPct/100,formed:p.formed,skinOn:p.skinOn,bagKg:p.bagKg,description:'Synthetic learner recipe'});
+      break;
+    }
     case 'selectRecipe': {
-      s.activeRecipe=p.id;const r=recipeFor(p.id);
+      s.activeRecipe=p.id;const r=recipeFor(p.id,s);
       s.loops.blanch.sp=r.blanchC;s.loops.fry.sp=r.fryC;s.loops.freeze.sp=r.freezeC;
-      const pending=s.orders.find(x=>x.status==='QUEUED');if(pending)pending.recipe=p.id;
+      const pending=s.orders.find(x=>x.status==='QUEUED');if(pending&&(!r.revision||!queuedOrder(s)))pending.recipe=p.id;
       break;
     }
     case 'receive': {
@@ -297,7 +314,7 @@ export function act(s,type,payload = {}) {
 }
 
 function nextPacket(s,stage,packet) {
-  const r=recipeFor(packet.recipe);
+  const r=recipeFor(packet.recipe,s);
   packet.entered=s.time;packet.ready=s.time+dwell(stage,r);
   stage.queue.push(packet);stage.massKg+=mass(packet);
 }
@@ -325,7 +342,7 @@ function stageBlocked(s,st) {
   if((ids[st.id]||[]).some(id=>has(s,id)))return 'FAULT';
   if(st.id==='wash'&&(s.utilities.waterM3<1||s.ww.volumeM3>245))return 'UTILITY';
   if(st.id==='fry'&&s.stores.oilKg<1)return 'CONSUMABLE';
-  if(st.id==='coat'&&recipeFor(s.activeRecipe).coatFraction&&s.stores.coatKg<1)return 'CONSUMABLE';
+  if(st.id==='coat'&&recipeFor(s.activeRecipe,s).coatFraction&&s.stores.coatKg<1)return 'CONSUMABLE';
   if(st.id==='pack'&&s.stores.filmKg<0.01)return 'CONSUMABLE';
   if(st.id==='freeze'&&s.loops.freeze.pv>-18)return 'TEMPERATURE';
   return null;
@@ -342,7 +359,7 @@ function processStages(s) {
     while(capacity>1e-8&&st.queue.length){
       const packet=st.queue[0];
       if(packet.ready>s.time)break;
-      const r=recipeFor(packet.recipe),factor=outputFactor(st.id,r,s.faults);
+      const r=recipeFor(packet.recipe,s),factor=outputFactor(st.id,r,s.faults);
       const availableSpace=next?Math.max(0,next.bufferKg-next.massKg):Math.max(0,s.warehouse.capacityKg-s.finishedLots.reduce((n,l)=>n+l.pendingKg+l.releasedKg,0));
       let kg=Math.min(mass(packet),capacity,availableSpace/factor);
       if(st.id==='blanch')kg=Math.min(kg,s.utilities.waterM3*1000/0.015);
@@ -553,7 +570,7 @@ export function scenario(id,seed = 42) {
   return replayRun({format:'potato-sim/1',version:VERSION,seed,until:preset.until,commands:preset.events});
 }
 export function review(s) {
-  return {title:'Potato-Plant-Simulation - independent engineering study',version:VERSION,simulationOnly:true,notAValidatedDooenDigitalTwin:true,author:'Sajeevan Veeriah',sources:copy(SOURCES),assumptions:copy(ASSUMPTIONS),summary:summarise(s),conservation:assertPlant(s),recipes:copy(RECIPES),equipment:copy(STAGES),controls:copy(s.loops),systems:copy(s.systems),integrationContract:{schema:"oia.reference/1",transport:"in-process simulation",fields:["tag","value","unit","quality","simulationTime"],commands:"validated command journal",delivery:"idempotent by message ID",security:"simulated roles, no authentication"},orders:copy(s.orders),rawLots:copy(s.rawLots),finishedLots:copy(s.finishedLots),shipments:copy(s.shipments),utilities:copy(s.utilities),wastewater:copy(s.ww),alarms:copy(s.alarms),events:copy(s.events),sanitation:copy(s.clean),maintenance:copy(s.jobs),integration:{outbox:copy(s.outbox),delivered:copy(s.delivered)},history:copy(s.history),run:JSON.parse(exportRun(s))};
+  return {title:'Potato-Plant-Simulation - independent engineering study',version:VERSION,simulationOnly:true,notAValidatedDooenDigitalTwin:true,author:'Sajeevan Veeriah',sources:copy(SOURCES),assumptions:copy(ASSUMPTIONS),summary:summarise(s),conservation:assertPlant(s),recipes:copy(plantRecipes(s)),equipment:copy(STAGES),controls:copy(s.loops),systems:copy(s.systems),integrationContract:{schema:"oia.reference/1",transport:"in-process simulation",fields:["tag","value","unit","quality","simulationTime"],commands:"validated command journal",delivery:"idempotent by message ID",security:"simulated roles, no authentication"},orders:copy(s.orders),rawLots:copy(s.rawLots),finishedLots:copy(s.finishedLots),shipments:copy(s.shipments),utilities:copy(s.utilities),wastewater:copy(s.ww),alarms:copy(s.alarms),events:copy(s.events),sanitation:copy(s.clean),maintenance:copy(s.jobs),integration:{outbox:copy(s.outbox),delivered:copy(s.delivered)},history:copy(s.history),run:JSON.parse(exportRun(s))};
 }
 export function csv(s,kind) {
   let columns,rows;

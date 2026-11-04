@@ -1,3 +1,4 @@
+import {checkPlan,checkRoute} from './settings.mjs';
 export const STEP=.02;
 const TAU=2*Math.PI,rad=Math.PI/180,limit=50000,phases=['idle','toPick','grip','toPlace','release','complete','fault'];
 function requireThat(value,message){if(!value)throw Error(message);}
@@ -98,7 +99,12 @@ export function step(c,n=1){
 }
 export function validateCell(c){
   const plain=(obj,fields)=>obj&&typeof obj==='object'&&!Array.isArray(obj)&&Object.keys(obj).every(k=>fields.includes(k));
-  const shape=newCell();requireThat(plain(c,Object.keys(shape)),'Unknown robot project field.');
+  const shape=newCell();requireThat(plain(c,[...Object.keys(shape),'advanced']),'Unknown robot project field.');
+  if(c.advanced!==undefined){
+    const d=c.advanced;
+    requireThat(plain(d,['plan','route','ticks','cancelled']) && integer(d.ticks,0,3000) && typeof d.cancelled==='boolean','Invalid advanced practice checkpoint.');
+    checkPlan(d.plan);checkRoute(d.route);
+  }
   for(const key of ['base','arm','stations','carton','pallet','keepout','signals'])requireThat(plain(c[key],Object.keys(shape[key])),'Unknown robot configuration field.');
   requireThat(['pick','place'].every(k=>plain(c.stations[k],['x','y'])),'Unknown target frame field.');
   requireThat(c?.format==='oia.robot'&&c.version===1&&point(c.base)&&bounded(c.base.yaw,-TAU,TAU),'Invalid cell format or base frame.');
