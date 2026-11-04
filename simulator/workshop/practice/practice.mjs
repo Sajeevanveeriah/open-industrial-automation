@@ -153,3 +153,5 @@ $('capture').onclick=()=>{if(!latest||!$('finding').value.trim()){$('status').te
   if(data.evidence.length>=32){$('status').textContent='The 32-record learning register is full.';return;}
   data.evidence.push({...latest,finding:$('finding').value.slice(0,800)});save();evidence();$('status').textContent='Captured with the current workshop project.';};
 configure();evidence();
+
+document.querySelector('main').inert = false;

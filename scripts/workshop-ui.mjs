@@ -33,6 +33,23 @@ try {
   const run=async(n)=>{for(let i=0;i<n;i++)await click('Step 1 s');};
   const notice=async(regex)=>{assert.match(await page.locator('#notice').innerText(),regex);};
   const url=base.replace(/\/$/,'')+'/workshop/index.html';
+  let releaseModule;
+  const delayed=new Promise(resolve=>{releaseModule=resolve;});
+  const siteEntry=/\/site\/site\.mjs(?:\?|$)/;
+  await page.route(siteEntry,async route=>{await delayed;await route.continue();});
+  try {
+    await page.goto(new URL('./site/index.html',url).href,{waitUntil:'commit'});
+    await page.locator('#sample').waitFor({state:'attached'});
+    const button=page.locator('#sample');
+    await button.scrollIntoViewIfNeeded();
+    assert.ok(await button.evaluate(el=>{
+      const rect=el.getBoundingClientRect();
+      return el.closest('main').inert && document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2)!==el;
+    }));
+  } finally { releaseModule(); }
+  await click('Load training layout');
+  assert.equal(await page.locator('#tree option').count(),11);
+  await page.unroute(siteEntry);
   await page.goto(url);
   await page.getByRole('heading',{name:'Packaging workshop'}).waitFor();
   assert.equal(await page.locator('#readings strong').first().textContent(),'0.0 s');

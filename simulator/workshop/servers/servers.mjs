@@ -52,3 +52,5 @@ $('execute').onclick=()=>{
 function reset(ref){if(!confirm('Replace this server estate and its local audit?'))return;state=createServers(ref);fields();draw();persist();$('result').textContent=ref?'Reference estate opened.':'Empty estate opened.';}
 $('blank').onclick=()=>reset(false);$('ref').onclick=()=>reset(true);
 fields();draw();persist();
+
+document.querySelector('main').inert = false;

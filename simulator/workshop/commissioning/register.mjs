@@ -55,3 +55,5 @@ $('entry').onchange=()=>{index=Number($('entry').value);show();};$('document').o
 $('return').onclick=e=>{try{store();}catch(err){e.preventDefault();$('status').textContent=err.message;}};
 $('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(reg,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='commissioning-register.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);};
 show();
+
+document.querySelector('main').inert = false;

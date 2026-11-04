@@ -130,3 +130,5 @@ for(const [id,fn] of [['blank',newRack],['reference',referenceRack]])$(id).oncli
 $('export').onclick=()=>{const a=document.createElement('a');const url=URL.createObjectURL(new Blob([JSON.stringify(rack)],{type:'application/json'}));a.href=url;a.download='rack-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('import').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>256000)throw Error('File exceeds 256 kB.');const next=importRack(await file.text());replace(next);status('Opened '+file.name);}catch(error){status(error.message);}e.target.value='';};
 render();save();
+
+document.querySelector('main').inert = false;
