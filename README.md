@@ -1,6 +1,6 @@
 # Potato plant digital twin
 
-A browser simulation of the complete potato material journey for independent Farm Frites Dooen engineering review. The only deployed application is the potato plant. The retired water/mixing suite and desktop installers have been removed.
+A browser simulation of the complete potato material journey for independent Farm Frites Dooen engineering review. The plant opens at the existing root URL. Choose **Engineering workshop** in its navigation to build a packaging cell.
 
 ## Run
 
@@ -10,7 +10,7 @@ npm test
 npm run dev
 ```
 
-`npm run build` creates the static GitHub Pages site in `dist/`. Standard public-repository GitHub hosted runners verify and deploy `main`. No installer builds run.
+`npm run build` creates the static GitHub Pages site in `dist/`. Standard public-repository GitHub hosted runners verify and deploy `main`. The Windows engineering workshop uses the same built site.
 
 ## Review
 
@@ -37,3 +37,25 @@ All old entry points redirect to the root potato application. A scoped migration
 ## Model boundary
 
 This is an independent illustrative simulation, not a calibrated replica or an endorsed Farm Frites control system. Operating values, equipment arrangement and records are synthetic. No real PLC or plant is connected. See `simulator/README.md` and the in-app Engineering reference for model assumptions and validation scope.
+
+## Engineering workshop
+
+Open [the packaging workshop](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/index.html). Select **New blank cell** to design from zero. In **Guided Learning**, choose **Move and measure** for the first lesson. The existing plant remains available from **Reference plant**.
+
+Open **CAD and engine workspace > Open CAD import bench**. Open the photoeye STEP assembly, inspect its 0.100 m base and use it in the packaging cell. Select a bracket and apply the measured width. Both editions convert the same self-contained STEP files locally. The part source accompanies the portable project as inert data. The model's design and runtime limits are documented in [the acceptance register](TASKS.md).
+
+For Windows, install the per-user x64 package. To build or run from source on Windows, use the following commands from the repository root.
+
+```powershell
+npm ci
+npm run build
+npm ci --prefix windows
+npm start --prefix windows
+npm run package --prefix windows
+```
+
+The installer is written to `windows/release/`. The application loads its packaged site without a server. Use the native project controls to move a workshop project between editions. The packaging cell and original reference factory have distinct save formats.
+
+## Third-party CAD components
+
+The workshop distributes the unmodified occt-import-js 0.0.23 WebAssembly module as separate, replaceable files in `vendor/occt/`. Both licence texts ship with the build. The module is built from [the corresponding converter source and build instructions](https://github.com/kovacsv/occt-import-js/tree/c2148e54b456b571238d35cac037d304053d64b2) and [the corresponding OCCT kernel revision](https://github.com/Open-Cascade-SAS/OCCT/tree/d2abb6d844231cb8f29be6894440874a4700e4a5). Rebuild or replace the module independently of the workshop. The offline SQL bench packages sql.js and its licence. FreeCAD is used separately to regenerate the original teaching parts with `scripts/generate-workshop-cad.py`.

@@ -3,7 +3,7 @@
 const root = new URL('./', self.location.href);
 root.pathname = root.pathname.replace(/(?:suite|potato)\/$/, '');
 const owned = url => { const u = new URL(url); return u.origin === root.origin && u.pathname.startsWith(root.pathname); };
-const engineeringDocument = url => new URL(url).pathname.startsWith(root.pathname + 'engineering-docs/');
+const independentPage = url => ['engineering-docs/', 'workshop/'].some(prefix => new URL(url).pathname.startsWith(root.pathname + prefix));
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   for (const name of await caches.keys()) {
@@ -17,7 +17,7 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
   // Ask the painted page, not the cache, which application is running.
   // Cacheless intermediate releases also need automatic replacement.
   for (const client of await self.clients.matchAll({type:'window'})) {
-    if (!owned(client.url) || engineeringDocument(client.url)) continue;
+    if (!owned(client.url) || independentPage(client.url)) continue;
     const current = await new Promise(resolve => {
       const channel = new MessageChannel();
       const timer = setTimeout(() => {channel.port1.close();resolve(false);}, 800);
@@ -32,7 +32,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || !owned(event.request.url)) return;
   if (event.request.mode === 'navigate') {
     const url = new URL(event.request.url);
-    if (!engineeringDocument(url) && url.pathname !== root.pathname && url.pathname !== root.pathname + 'index.html') {
+    if (!independentPage(url) && url.pathname !== root.pathname && url.pathname !== root.pathname + 'index.html') {
       event.respondWith(Promise.resolve(Response.redirect(root.href + '#plant', 302)));
       return;
     }

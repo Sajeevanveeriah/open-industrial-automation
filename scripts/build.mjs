@@ -11,8 +11,14 @@ for(const file of ['SVGRenderer.js','Projector.js']){const code=await readFile(r
 await cp(resolve('node_modules/three/LICENSE'),resolve(target,'vendor/THREE-LICENSE.txt'));
 // Version every module edge, including transitive renderer dependencies. The
 // hash is derived from source bytes; unchanged vendor modules keep their cache.
+await mkdir(resolve(target,'vendor/occt'),{recursive:true});
+for (const name of ['occt-import-js.js','occt-import-js.wasm','license.occt.txt','license.occt-import-js.txt']) await cp(resolve('node_modules/occt-import-js/dist',name),resolve(target,'vendor/occt',name));
+const sqlVendor=resolve(target,'workshop/practice/vendor');
+await mkdir(sqlVendor,{recursive:true});
+for(const name of ['sql-wasm.js','sql-wasm.wasm']) await cp(resolve('node_modules/sql.js/dist',name),resolve(sqlVendor,name));
+await cp(resolve('node_modules/sql.js/LICENSE'),resolve(sqlVendor,'LICENSE.txt'));
 const modules=new Map();
-for(const f of await readdir(target,{recursive:true}))if(/\.(mjs|js)$/.test(f)&&f!=='sw.js'){const path=resolve(target,f),code=await readFile(path,'utf8');modules.set(path,{code,hash:createHash('sha256').update(code).digest('hex').slice(0,12)});}
+for(const f of await readdir(target,{recursive:true}))if(/\.(mjs|js)$/.test(f)&&f!=='sw.js'&&!f.includes('occt-import-js')){const path=resolve(target,f),code=await readFile(path,'utf8');modules.set(path,{code,hash:createHash('sha256').update(code).digest('hex').slice(0,12)});}
 for(const [path,{code}] of modules)await writeFile(path,code.replace(/((?:from\s+|import\s*)['"])(\.\/[^'"]+\.(?:mjs|js))(['"])/g,(all,prefix,file,quote)=>{const dep=modules.get(resolve(dirname(path),file));return dep?`${prefix}${file}?v=${dep.hash}${quote}`:all;}));
 let html=await readFile(resolve(target,'index.html'),'utf8');
 for(const file of ['styles.css','app.mjs']){const hash=createHash('sha256').update(await readFile(resolve(target,file))).digest('hex').slice(0,12);html=html.replace(file+'?v=potato-systems-10',file+'?v=potato-systems-10-'+hash);}
@@ -34,5 +40,4 @@ for (const alias of ['', 'suite/']) {
 }
 await writeFile(resolve(target,'release.json'),JSON.stringify({release:'potato-systems-10',commit:process.env.GITHUB_SHA||'local'}));
 await writeFile(resolve(target,'.nojekyll'),'\n');
-console.log('Built potato-only application with redirects for every retired entry point.');
-
+console.log('Built potato plant and engineering workshop with redirects for every retired entry point.');

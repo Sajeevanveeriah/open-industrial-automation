@@ -6,4 +6,4 @@ const app=await readFile('simulator/app.mjs','utf8');
 if(/Open original OIA suite|TK-101 MIX TANK/.test(app))throw Error('Legacy application link or water plant remains');
 JSON.parse(await readFile('package.json','utf8'));
 JSON.parse(await readFile('simulator/manifest.webmanifest','utf8'));
-console.log('Source verified: potato-only application, simulation model and licence.');
+console.log('Source verified: potato plant application, simulation model and licence.');
