@@ -7,6 +7,11 @@ on:
       - 'scripts/build.mjs'
       - '.github/workflows/workshop-clean-windows.yml'
   workflow_dispatch:
+    inputs:
+      published_installer:
+        description: Test the installer published for the checked-out version
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -25,8 +30,24 @@ jobs:
       - run: npm ci --prefix windows
       - run: node windows/node_modules/electron/install.js
       - run: npm test --prefix windows
-      - working-directory: windows
+      - if: inputs.published_installer != true
+        working-directory: windows
         run: node node_modules/electron-builder/cli.js --win nsis --x64 --publish never
+      - name: Retrieve and authenticate published installer
+        if: inputs.published_installer == true
+        working-directory: windows
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
+          $name = "OIA-Workshop-$version-Windows-x64.exe"
+          $expected = ((Get-Content "verification/Windows-$version-SHA256.txt" -Raw).Trim() -split '\s+')
+          if ($expected.Count -ne 2 -or $expected[1] -ne $name) { throw 'Invalid release checksum record' }
+          New-Item -ItemType Directory -Force release | Out-Null
+          Invoke-WebRequest "https://github.com/Sajeevanveeriah/open-industrial-automation/releases/download/workshop-v$version/$name" -OutFile "release/$name"
+          $actual = (Get-FileHash "release/$name").Hash
+          if ($actual -ne $expected[0]) { throw 'Published binary checksum mismatch' }
+          Write-Output "Tested release input $name SHA256 $actual"
       - name: Install on the clean runner and check the packaged app
         working-directory: windows
         shell: pwsh
