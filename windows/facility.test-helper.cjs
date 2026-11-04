@@ -24,14 +24,18 @@ async function verifyFacility(app,page,directory) {
     const samples=[];
     let last;
     await new Promise(done=>{
+      let ended=false;
+      const finish=()=>{ended=true;clearTimeout(limit);done();};
+      const limit=setTimeout(finish,4000);
       const frame=now=>{
+        if(ended)return;
         if(last!==undefined)samples.push(now-last);last=now;
-        if(samples.length<90)requestAnimationFrame(frame);else done();
+        if(samples.length<90)requestAnimationFrame(frame);else finish();
       };
       requestAnimationFrame(frame);
     });
     const sorted=[...samples].sort((a,b)=>a-b);
-    return {observations:samples.length,meanFrameMs:samples.reduce((a,b)=>a+b,0)/samples.length,p95FrameMs:sorted[Math.ceil(sorted.length*.95)-1],
+    return {observations:samples.length,meanFrameMs:samples.length?samples.reduce((a,b)=>a+b,0)/samples.length:null,p95FrameMs:sorted[Math.ceil(sorted.length*.95)-1]??null,
       renderer:gl&&ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):'unreported',devicePixelRatio,screen:[innerWidth,innerHeight],visibility:document.visibilityState};
   });
   await fs.writeFile(path.join(directory,'facility-metrics.json'),JSON.stringify({...metrics,inventoryOptions:count,offlineEmulated:true,backgroundThrottling:false},null,2));
