@@ -349,14 +349,14 @@ listen('case-link','click',()=>{persist();sessionStorage.setItem('oia-case-regis
 window.addEventListener('pagehide',()=>{pause();persist();});
 function restoreBench() {
   for(const [name,slot] of [['rack','infrastructure'],['cad','cad'],['practice','practice'],['commissioning','commissioning'],['robot','robot'],['layout','layout'],['electrical','electrical'],['servers','servers'],['foundations','foundations']]){
-    const key=name==='servers'?'oia-workshop-servers-v1':'oia-workshop-'+name+'-transfer-v1', value=sessionStorage.getItem(key);if(!value)continue;
-    sessionStorage.removeItem(key);
+    const transferKey=name==='servers'?'oia-workshop-servers-v1':'oia-workshop-'+name+'-transfer-v1', value=sessionStorage.getItem(transferKey);if(!value)continue;
     if(value.length>2*1024*1024)throw Error('Returned bench data exceeds project limit.');
-    const data=JSON.parse(value), imported=['practice','servers'].includes(name)?data.data:name==='layout'?(data?.layout??data):data;
+    const data=JSON.parse(value);
+    if(data===null){sessionStorage.removeItem(transferKey);continue;}
+    const imported=['practice','servers'].includes(name)?data.data:name==='layout'?(data?.layout??data):data;
     if(name==='cad'&&(!Number.isFinite(data.widthM)||data.widthM<=0))throw Error('Returned CAD measurement is missing.');
     const candidate=loadProject(saveProject({...active,extensions:{...active.extensions,[slot]:imported}}));
     if(name==='practice' && data.install) {
-      sessionStorage.removeItem(key);
       if(!candidate.assets.some(a=>a.type==='plc'))tell('Experiment retained. Place a PLC before installing the program.');
       else command(candidate,'installProgram',{source:data.install.source,language:data.install.language});
     }
@@ -365,17 +365,24 @@ function restoreBench() {
       if(current(bracket)?.type!=='bracket'||current(conveyor)?.type!=='conveyor')throw Error('Layout mount references a different cell.');
       configure(candidate,conveyor,{length});configure(candidate,bracket,{x:position});
     }
-    saveProject(candidate);active=candidate;sessionStorage.removeItem(key);
+    localStorage.setItem(key('active'),saveProject(candidate));
+    active=candidate;sessionStorage.removeItem(transferKey);
   }
 }
+function finishBenchReturn(){
+  if(sessionStorage.getItem('oia-studio-bench-return-v1')!=='1')return;
+  storeCurrent();
+  sessionStorage.removeItem('oia-studio-bench-return-v1');
+  location.replace('./studio/index.html');
+}
 active=createProject('blank');
-try {profile=localStorage.getItem('oia-workshop-profile-v1')||profile;const raw=localStorage.getItem(key('active'));if(raw)active=loadProject(raw);restoreBench();} catch(e){tell('Recovery: '+e.message);}
+try {profile=localStorage.getItem('oia-workshop-profile-v1')||profile;const raw=localStorage.getItem(key('active'));if(raw)active=loadProject(raw);restoreBench();finishBenchReturn();} catch(e){tell('Recovery: '+e.message);}
 mode=modes.includes(active.learning.mode)?active.learning.mode:modes[0];
 active.learning.chapter=Math.max(1,Math.min(chapters.length,active.learning.chapter));
 refresh(true);
 
 window.addEventListener('pageshow',guard(event=>{
-  if(event.persisted){restoreBench();refresh(true);persist();}
+  if(event.persisted){restoreBench();refresh(true);persist();finishBenchReturn();}
 }));
 
 document.body.inert = false;

@@ -20,7 +20,7 @@ try{
   const button=name=>page.getByRole('button',{name,exact:true});
   const openTools=async()=>{if(!await page.getByRole('link',{name:'Site assembly'}).isVisible())await page.getByText('CAD and engine workspace',{exact:true}).click();};
   const clickLink=async name=>{await page.getByRole('link',{name,exact:true}).click();await page.waitForLoadState('load');};
-  await page.goto(root.replace(/\/$/,'')+'/workshop/index.html');await openTools();await clickLink('Open CAD import bench');
+  await page.goto(root.replace(/\/$/,'')+'/workshop/classic.html');await openTools();await clickLink('Open CAD import bench');
   await page.locator('#constraint-b').selectOption('perimeter');await page.locator('#value-b').fill('280');await page.locator('#solve').click();assert.match(await page.locator('#sketch-status').innerText(),/height 40.00/);
   await page.locator('#constraint-c').selectOption('height');await page.locator('#value-c').fill('42');await page.locator('#solve').click();assert.match(await page.locator('#sketch-status').innerText(),/Conflicting/);
   await page.locator('#constraint-c').selectOption('');await page.locator('#design-reason').fill('Mount a sensor at the edge.');await page.locator('#issue').click();

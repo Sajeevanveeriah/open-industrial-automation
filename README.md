@@ -40,9 +40,13 @@ This is an independent illustrative simulation, not a calibrated replica or an e
 
 ## Engineering workshop
 
-Open [the packaging workshop](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/index.html). Select **New blank cell** to design from zero. In **Guided Learning**, choose **Move and measure** for the first lesson. The existing plant remains available from **Reference plant**.
+Open the [live facility](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/index.html) to inspect warehouse operations. Select a vehicle or rack to see its current job or inventory. Open [Packaging cell](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/studio/index.html) to edit the cell, run the conveyor or take the first sensor-placement lesson.
 
-Open **CAD and engine workspace > Open CAD import bench**. Open the photoeye STEP assembly, inspect its 0.100 m base and use it in the packaging cell. Select a bracket and apply the measured width. Both editions convert the same self-contained STEP files locally. The part source accompanies the portable project as inert data. The model's design and runtime limits are documented in [the acceptance register](TASKS.md).
+**Part design** opens an editable cross-section beside its solid. Drag a vertex or change a dimension, inspect the resulting part and mount it on the cell bracket. **Analysis** opens the drive response lab for parameter sweeps, trace comparison, point inspection and CSV export. The [Classic workshop](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/classic.html) remains available for existing projects, commissioning and specialist exercises.
+
+The distribution floor is a synthetic facility. Its operating ledger tracks storage and vehicle loads, dock staging and dispatch. Rack, forklift, pallet truck and pallet visual meshes are derived from NVIDIA's CC BY 4.0 Physical AI SimReady Warehouse collection. The live scene uses the workshop simulation. [Sources, licence and geometry modifications](simulator/workshop/studio/facility/assets/ATTRIBUTION.md).
+
+In Classic, open **CAD and engine workspace > Open CAD import bench**. Open the photoeye STEP assembly, inspect its 0.100 m base and use it in the packaging cell. Select a bracket and apply the measured width. Both editions convert the same self-contained STEP files locally. The part source accompanies the portable project as inert data. The model's design and runtime limits are documented in [the acceptance register](TASKS.md).
 
 For Windows, install the per-user x64 package. To build or run from source on Windows, use the following commands from the repository root.
 
