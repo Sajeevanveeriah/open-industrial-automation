@@ -12,12 +12,16 @@ const server=createServer(async(req,res)=>{try{const url=decodeURIComponent(new 
   const content=await readFile(file);res.setHeader('Content-Type',({'.mjs':'text/javascript','.js':'text/javascript','.html':'text/html','.css':'text/css','.svg':'image/svg+xml'})[extname(file)]||'application/octet-stream');res.end(content);
 }catch{res.writeHead(404);res.end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const base=(process.env.OIA_BASE_URL||('http://127.0.0.1:'+server.address().port)).replace(/\/$/,'');
+const fixture=base+'/workshop/viewport-inspection-test.html';
+const markup=scenario.replaceAll('from "/workshop/','from "./');
 const browser=await chromium.launch({...(process.env.OIA_CHROMIUM?{executablePath:process.env.OIA_CHROMIUM}:{}),args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 try{for(const fallback of [false,true]){
   const page=await browser.newPage();page.setDefaultTimeout(6000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   if(fallback)await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl2'?null:original.call(this,type,...args);};});
-  await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.viewport);
+  await page.route(fixture,route=>route.fulfill({contentType:'text/html',body:markup}));
+  await page.goto(fixture);await page.waitForFunction(()=>typeof window.viewport?.update==='function',null,{timeout:30000});
   const surface=page.locator('.studio-viewport-surface');
   assert.equal(await surface.getAttribute('data-renderer'),fallback?'svg':'webgl');
   await surface.locator('summary').click();
@@ -51,7 +55,7 @@ try{for(const fallback of [false,true]){
   await page.evaluate(()=>viewport.dispose());assert.equal(await surface.count(),0);assert.deepEqual(errors,[]);console.log((fallback?'Projected SVG':'WebGL 2')+' passed ray selection, direct drag, keyboard edit, model advance and disposal.');await page.close();
 }
   const studio=await browser.newPage({viewport:{width:1380,height:920}});studio.setDefaultTimeout(12000);
-  await studio.goto('http://127.0.0.1:'+server.address().port+'/workshop/studio/index.html');
+  await studio.goto(base+'/workshop/studio/index.html');
   await studio.locator('#part-design').click();await studio.locator('#mount').click();await studio.locator('button[data-asset=bracket]').click();
   await studio.waitForFunction(()=>document.querySelector('.studio-viewport-caption')?.textContent.includes('authored solid'));
   if(process.env.OIA_WORKSHOP_SCREENSHOTS)await studio.screenshot({path:resolve(process.env.OIA_WORKSHOP_SCREENSHOTS,'studio-mounted-part.png')});
