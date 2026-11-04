@@ -12,7 +12,7 @@ const {_electron:electron}=require('../node_modules/playwright');
   const app=await electron.launch({executablePath:require('electron'),args:[__dirname,'--workshop-test-hidden','--user-data-dir='+path.join(dir,'profile')]});
   try{
     const page=await app.firstWindow();page.setDefaultTimeout(10000);
-    await page.waitForFunction(()=>document.getElementById('mode')?.options.length>0);
+    await page.waitForFunction(()=>document.body?.dataset.ready==='true' && !document.body.inert);
     await page.goto('workshop://local/workshop/native/index.html');
     await app.evaluate(({dialog},selected)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[selected]});},file);
     await page.locator('#import').click();

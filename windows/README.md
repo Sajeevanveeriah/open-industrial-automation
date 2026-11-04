@@ -2,6 +2,12 @@
 
 The Windows edition bundles the static site, Chromium and Node in an Electron host. Chromium runs the same workshop modules as the browser edition. A sandboxed preload exposes native project dialogs and optional local engineering tools. The renderer has no shell or Node API. All HTTP, HTTPS and WebSocket requests from the workshop are blocked. Local assets are served from the installed package through a private protocol with explicit MIME types.
 
+## Start the workshop
+
+The Windows application opens the facility overview. Follow a load, inspect the plant, or open the cell studio from the overview. In the cell studio, use **New project** for a blank scene or the working reference cell. **Save project** and **Open project** use Windows file pickers. The Workshop menu opens the classic packaging workshop and the reference plant. The classic project cabinet retains its original file format and local projects.
+
+The host checks the facility viewport, asset inventory and ready state. If the facility cannot initialise, it opens the cell studio. If the cell studio also fails, it opens the classic workshop. A renderer crash offers to reopen the most recently used facility, studio or classic surface. Profiles and projects stay outside the installed program directory.
+
 ## Build on Windows x64
 
 From the repository root, run `npm ci` and `npm run build`. Then run:

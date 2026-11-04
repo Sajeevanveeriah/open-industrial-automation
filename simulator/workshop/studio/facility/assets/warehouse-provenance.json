@@ -1,0 +1,73 @@
+{
+  "dataset": "NVIDIA Physical AI SimReady Warehouse OpenUSD Dataset",
+  "datasetRevision": "c7fe115cb79c7ddbd0532630d7768b5736b0ecc4",
+  "datasetCard": "https://huggingface.co/datasets/nvidia/PhysicalAI-SimReady-Warehouse-01/blob/c7fe115cb79c7ddbd0532630d7768b5736b0ecc4/README.md",
+  "creator": "NVIDIA Corporation",
+  "sourceLicense": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "conversion": "Static triangulated visual level of detail; metre vertices centred on floor, Z up; educational flat colours replace source materials. Source physics, textures and articulation are excluded.",
+  "converter": "scripts/convert-nvidia-warehouse.mjs",
+  "outputSha256": "dfb21f0e776a429d8a61af92a2d3e498450be1123871cbc00c42bc433b26ea7c",
+  "assets": [
+    {
+      "asset": "RackLargeEmpty_A1",
+      "source": "https://huggingface.co/datasets/nvidia/PhysicalAI-SimReady-Warehouse-01/resolve/c7fe115cb79c7ddbd0532630d7768b5736b0ecc4/Props/general/RackLargeEmpty_A1/RackLargeEmpty_A1.usd",
+      "sha256": "de857a11c8cd110ac14fe48ab78d5ef6f69f329e713ffea4642618c34581f226",
+      "sourceBytes": 2164254,
+      "sourceTriangles": 44104,
+      "convertedTriangles": 1785,
+      "vertices": 742,
+      "sizeMetres": [
+        2.0666,
+        4,
+        3.01
+      ],
+      "primCount": 3
+    },
+    {
+      "asset": "Pallet_A1",
+      "source": "https://huggingface.co/datasets/nvidia/PhysicalAI-SimReady-Warehouse-01/resolve/c7fe115cb79c7ddbd0532630d7768b5736b0ecc4/Props/general/Pallet_A1/Pallet_A1.usd",
+      "sha256": "e2daf9a345758e11de17ab96791a8a8ea5ba20daefc70b28e79c18e521837b80",
+      "sourceBytes": 88021,
+      "sourceTriangles": 2052,
+      "convertedTriangles": 400,
+      "vertices": 238,
+      "sizeMetres": [
+        1.2042,
+        0.8004,
+        0.2086
+      ],
+      "primCount": 1
+    },
+    {
+      "asset": "SM_HeavyDutyPalletTruck_A01_01",
+      "source": "https://huggingface.co/datasets/nvidia/PhysicalAI-SimReady-Warehouse-01/resolve/c7fe115cb79c7ddbd0532630d7768b5736b0ecc4/Props/general/SM_HeavyDutyPalletTruck_A01_01/SM_HeavyDutyPalletTruck_A01_01.usd",
+      "sha256": "74a11f7e4d438ae9923c67688c3885f2033563162497126fe67fb9a97de4cb05",
+      "sourceBytes": 11056445,
+      "sourceTriangles": 204218,
+      "convertedTriangles": 1478,
+      "vertices": 873,
+      "sizeMetres": [
+        0.6804,
+        1.6012,
+        1.201
+      ],
+      "primCount": 14
+    },
+    {
+      "asset": "SM_Forklift_A01_Orange_01",
+      "source": "https://huggingface.co/datasets/nvidia/PhysicalAI-SimReady-Warehouse-01/resolve/c7fe115cb79c7ddbd0532630d7768b5736b0ecc4/Props/general/SM_Forklift_A01_Orange_01/SM_Forklift_A01_Orange_01.usd",
+      "sha256": "2d8bb50e26a9c4e33add8825b7b9b2190299fdef6e8cfd01f25e07b0ce8ee795",
+      "sourceBytes": 16220217,
+      "sourceTriangles": 235884,
+      "convertedTriangles": 2473,
+      "vertices": 1885,
+      "sizeMetres": [
+        0.8226,
+        1.8853,
+        1.9651
+      ],
+      "primCount": 4
+    }
+  ]
+}

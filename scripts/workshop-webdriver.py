@@ -76,6 +76,16 @@ def run(browser):
                 call("/element/" + key + "/click", {})
             try:
                 visit("workshop/index.html")
+                until(lambda: js("document.body.dataset.ready==='true' && !!document.querySelector('#facility-viewport canvas,#facility-viewport svg')"))
+                click("#cell-studio")
+                until(lambda: js("document.body.dataset.ready==='true' && !!document.querySelector('#viewport canvas,#viewport svg')"))
+                assert js("document.querySelector('#asset-tree').textContent.length") > 0
+                before = js("document.querySelector('#clock').textContent")
+                click("#step")
+                until(lambda: js("document.querySelector('#clock').textContent") != before)
+                visit("workshop/studio/analysis/index.html")
+                assert js("document.querySelector('h1').textContent.trim()")
+                visit("workshop/classic.html")
                 assert js("document.querySelector('h1').textContent") == "Packaging workshop"
                 click("#reference")
                 click('#confirm button[value="replace"]')
@@ -85,7 +95,7 @@ def run(browser):
                     click("#second")
                 assert js("document.querySelectorAll('#readings strong')[2].textContent") == "1"
                 click("#save")
-                visit("workshop/index.html")
+                visit("workshop/classic.html")
                 assert js("document.querySelectorAll('#readings strong')[2].textContent") == "1"
                 visit("workshop/site/index.html")
                 click("#sample")

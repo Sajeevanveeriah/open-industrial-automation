@@ -2,6 +2,18 @@
 
 The [product specification](docs/design/Workshop-Requirements.md) contains the acceptance criteria. This register separates released exercises from remaining engineering work. The original root plant uses its established saved-run format. The workshop uses a separate portable version 1 project containing an origin, seed, bounded action log, learning state and inert extension records.
 
+## Interactive studio
+
+| Workspace | Learner action | Observable result |
+|---|---|---|
+| Distribution floor | Follow a vehicle, select a bay, trace a lot, place an order or interrupt a route | Position, fork/load, inventory, activity and dock state are read from one facility clock. The facility scenario is separate from packaging projects. |
+| Cell studio | Select equipment in the 3D scene, orbit, edit dimensions or drag a mounting position, then run the belt | The visible carton crosses the beam at its configured position. Moving the beam 0.50 m at 0.25 m/s changes the crossing by 2.0 s. |
+| Part design | Drag sketch vertices or enter dimensions, extrude or revolve, then mount a part | The solid, volume and exported mesh change. The cell shows the authored solid on its bracket and preserves the design in the portable project. |
+| Drive response lab | Change a drive parameter, run a sweep, inspect a trace and export its samples | Labelled plots and CSV carry the same calculated results. |
+| Classic and specialist benches | Open an existing packaging project and enter the associated bench | Prior project data, commissioning records and learner profiles remain available. |
+
+The textured facility and teaching models support engineering practice. SimReady source meshes were simplified for the display. The distribution floor does not execute NVIDIA physics or reproduce a measured plant.
+
 ## Version 0.2.0 feature and verification map
 
 B/W means the shared offline-capable renderer in browser and Windows. Native integration is separate. Test names below refer to files under `tests/` or `scripts/`.

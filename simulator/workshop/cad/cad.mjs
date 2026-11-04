@@ -86,7 +86,7 @@ $('generate').onclick=()=>{
   reset('');const mm=Number($('width').value);if(mm<20||mm>600||!Number.isFinite(mm)){reset('Set a width between 20 and 600 mm.');return;}
   present('Parametric bracket',null,[box('Base',[mm/1000,.04,.006]),box('Upright',[.006,.03,.044],[.007,.003,.006])],'Base\n  Upright','Z');
 };
-$('mount').onclick=()=>{try{sessionStorage.setItem('oia-workshop-cad-transfer-v1',JSON.stringify(source));location.assign('../index.html');}catch{ $('status').textContent='Session storage is full. Use a smaller source file.'; }};
+$('mount').onclick=()=>{try{sessionStorage.setItem('oia-workshop-cad-transfer-v1',JSON.stringify(source));location.assign('../classic.html');}catch{ $('status').textContent='Session storage is full. Use a smaller source file.'; }};
 
 const openFeature=featureBench((mesh,record)=>{reset('');present(mesh.name,null,[mesh],mesh.name,'Z');Object.assign(source,record);});
 try {

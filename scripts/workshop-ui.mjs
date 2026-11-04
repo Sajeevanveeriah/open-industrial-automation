@@ -32,7 +32,7 @@ try {
   const wire=async(from,out,to,input)=>{await page.locator('#from').selectOption(from);await page.locator('#out').selectOption(out);await page.locator('#to').selectOption(to);await page.locator('#in').selectOption(input);await click('Connect terminals');};
   const run=async(n)=>{for(let i=0;i<n;i++)await click('Step 1 s');};
   const notice=async(regex)=>{assert.match(await page.locator('#notice').innerText(),regex);};
-  const url=base.replace(/\/$/,'')+'/workshop/index.html';
+  const url=base.replace(/\/$/,'')+'/workshop/classic.html';
   let releaseModule;
   const delayed=new Promise(resolve=>{releaseModule=resolve;});
   const siteEntry=/\/site\/site\.mjs(?:\?|$)/;
@@ -125,12 +125,12 @@ try {
   const benchMenu=page.getByText('CAD and engine workspace',{exact:true});
   const openTools=async()=>{if(!await page.getByRole('link',{name:'Site assembly'}).isVisible())await benchMenu.click();};
   await openTools();await page.getByRole('link',{name:'Electrical wiring bench'}).click();await page.locator('#reference').click();await page.locator('#read').click();await page.locator('#back').click();
-  await page.locator('#rack-link').click();await page.locator('#probe button').click();await page.locator('a[href="../index.html"]').first().click();
-  await openTools();await page.getByRole('link',{name:'Robot kinematics and pallet bench'}).click();await page.locator('#start').click();await page.locator('#step').click();await page.locator('a[href="../index.html"]').first().click();
-  await openTools();await page.getByRole('link',{name:'Applied engineering bench'}).click();await page.locator('#run').click();await page.locator('#finding').fill('The first high scan increments once.');await page.locator('#capture').click();await page.locator('#apply').click();await page.locator('a[href="../index.html"]').first().click();
+  await page.locator('#rack-link').click();await page.locator('#probe button').click();await page.locator('a[href="../classic.html"]').first().click();
+  await openTools();await page.getByRole('link',{name:'Robot kinematics and pallet bench'}).click();await page.locator('#start').click();await page.locator('#step').click();await page.locator('a[href="../classic.html"]').first().click();
+  await openTools();await page.getByRole('link',{name:'Applied engineering bench'}).click();await page.locator('#run').click();await page.locator('#finding').fill('The first high scan increments once.');await page.locator('#capture').click();await page.locator('#apply').click();await page.locator('a[href="../classic.html"]').first().click();
   await page.waitForFunction(()=>document.getElementById('diagnostics')?.textContent.includes('Active PLC program: ST'));
-  await page.locator('#case-link').click();await page.locator('a[href="../index.html"]').first().click();
-  await openTools();await page.getByRole('link',{name:'Server commissioning'}).click();await page.locator('#execute').waitFor();await page.locator('a[href="../index.html"]').first().click();
+  await page.locator('#case-link').click();await page.locator('a[href="../classic.html"]').first().click();
+  await openTools();await page.getByRole('link',{name:'Server commissioning'}).click();await page.locator('#execute').waitFor();await page.locator('a[href="../classic.html"]').first().click();
   await openTools();await page.getByRole('link',{name:'Open CAD import bench'}).click();await page.waitForLoadState('load');await page.waitForFunction(()=>typeof document.getElementById('generate')?.onclick==='function');await page.locator('#generate').click();await page.locator('#mount').click();
   await openTools();await page.getByRole('link',{name:'Open CAD import bench'}).click();await page.locator('#reopen').click();await page.locator('#mount').click();
   const combined=page.waitForEvent('download');await click('Export project');const portable=JSON.parse(await readFile(await (await combined).path(),'utf8'));

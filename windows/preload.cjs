@@ -1,5 +1,5 @@
 const {contextBridge, ipcRenderer} = require('electron');
-if (['workshop://local/workshop/index.html','workshop://local/workshop/native/index.html'].includes(location.href.split(/[?#]/)[0])) {
+if (['workshop://local/workshop/studio/facility/index.html','workshop://local/workshop/studio/index.html','workshop://local/workshop/classic.html','workshop://local/workshop/native/index.html'].includes(location.href.split(/[?#]/)[0])) {
   contextBridge.exposeInMainWorld('workshopHost', {
     openProject:() => ipcRenderer.invoke('project:open'),
     saveProject:text => ipcRenderer.invoke('project:save',text),

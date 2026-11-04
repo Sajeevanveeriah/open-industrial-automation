@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#16252c"><title>Engineering Studio | Open Industrial Automation</title>
+<link rel="stylesheet" href="./studio.css">
+</head>
+<body inert data-ready="false">
+<a class="skip" href="#stage">Skip to assembly view</a>
+<header class="mast">
+  <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m3 11 13-7 13 7-13 7z M3 16l13 7 13-7 M3 21l13 7 13-7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg></div>
+  <div class="brand">OIA <span>Engineering Studio</span></div>
+  <div class="mast-space"></div><span class="live-indicator"><i></i> Local simulation</span>
+  <button id="profile-btn" class="mast-button" title="Learner profile" aria-label="Learner profile"><span data-icon="user"></span><span id="profile-label">Learner</span></button>
+</header>
+<nav class="commands" aria-label="Project commands">
+  <div class="toolbar-group"><button id="new-project"><span data-icon="new"></span>New project</button><button id="open-project"><span data-icon="open"></span>Open project</button><button id="save-project"><span data-icon="save"></span>Save project</button></div>
+  <div class="toolbar-group divider"><button id="place"><span data-icon="add"></span>Place asset</button><button id="wire"><span data-icon="wire"></span>Connect</button><button id="undo" aria-label="Undo design edit" title="Undo design edit"><span data-icon="undo"></span></button></div>
+  <div class="toolbar-group right"><button id="part-design"><span data-icon="part"></span>Part design</button><button id="benches"><span data-icon="grid"></span>Workspaces</button><button id="start-lesson" class="lesson-button"><span data-icon="book"></span>First lesson</button></div>
+</nav>
+<main>
+<div class="titlebar"><div><div class="eyebrow">Engineering workshop <span>/</span> Assembly</div><h1 id="project-title">Packaging cell</h1></div><div class="title-meta"><span class="badge" id="project-kind">Reference design</span><span class="project-meta" id="meta">10 assets</span></div></div>
+<div class="mobile-tabs" aria-label="Workspace panels"><button data-panel="scene" aria-pressed="true">Scene</button><button data-panel="assets" aria-pressed="false">Assets</button><button data-panel="inspect" aria-pressed="false">Inspector</button></div>
+<div class="workspace" id="workspace" data-panel="scene">
+<aside class="assembly" aria-label="Assembly browser">
+  <div class="panel-title"><span data-icon="layers"></span><h2>Assembly browser</h2><span class="small-value" id="asset-total"></span></div>
+  <label class="asset-search"><span data-icon="search"></span><input id="search" type="search" aria-label="Filter assets" placeholder="Filter assets"></label>
+  <div id="asset-tree" aria-label="Asset selection"></div>
+  <div class="assembly-foot"><button id="tree-place"><span data-icon="add"></span> Place an asset</button></div>
+</aside>
+<section id="stage" class="stage" tabindex="-1" aria-label="Interactive assembly view">
+  <div class="stage-head"><span class="view-heading"><span data-icon="cube"></span> Assembly view</span><div class="view-commands"><button id="iso" aria-pressed="true" title="Isometric view">Iso</button><button id="top" aria-pressed="false" title="Plan view">Top</button><button id="front" aria-pressed="false" title="Front view">Front</button><button id="fit" aria-label="Fit assembly" title="Fit assembly"><span data-icon="fit"></span></button></div></div>
+  <div class="drawing" id="drawing"><div id="viewport" tabindex="0" aria-label="Assembly viewport. Select assets in the assembly browser."></div>
+  <div id="empty-hint" hidden><span data-icon="cube"></span><strong>Your empty site</strong><p>Place a conveyor to establish the cell. Set its speed, then add a carton and step the clock.</p><div class="empty-actions"><button id="empty-place">Place conveyor</button><button id="empty-demo">Run reference demo</button></div></div></div>
+  <div class="scene-footer"><span><i class="axis-dot"></i> World frame</span><span id="selection-note">Conveyor selected</span><span>Units: m</span></div>
+</section>
+<aside class="inspector" id="inspector" aria-label="Asset properties"><div class="panel-title"><span data-icon="settings"></span><h2>Inspector</h2></div><div id="properties"></div></aside>
+</div>
+<section class="transport" aria-label="Simulation controls"><div class="transport-title"><span class="eyebrow">Simulation clock</span><strong id="clock">00:00.0</strong></div><div class="playback"><button id="play" class="primary"><span data-icon="play"></span><span id="play-label">Run cell</span></button><button id="step" title="Advance one 100 ms scan"><span data-icon="step"></span>Step</button><label class="rate"><span class="sr">Playback speed</span><select id="rate"><option value="0.25">0.25×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></label></div><div class="transport-spacer"></div><button id="add-carton"><span data-icon="box"></span>Add carton</button><button id="checkpoint" title="Save a runtime checkpoint"><span data-icon="flag"></span><span>Checkpoint</span></button><button id="restore" title="Restore the saved runtime checkpoint" aria-label="Restore checkpoint"><span data-icon="rewind"></span></button></section>
+<section id="lesson" class="lesson" hidden><div class="lesson-top"><span class="eyebrow">Guided practical <span>/</span> Photoeye timing</span><button id="hide-lesson" aria-label="Close lesson panel"><span data-icon="close"></span></button></div><div class="lesson-content"><div><strong id="lesson-heading"></strong><p id="lesson-text"></p></div><div id="lesson-actions"></div></div></section>
+<section class="console" aria-label="Measurements and event history"><div class="console-head"><div class="console-tabs"><button id="measure-tab" aria-pressed="true">Measurements</button><button id="events-tab" aria-pressed="false">Event history</button></div><span class="sample">100 ms scan</span></div><div id="measures"></div><div id="events" hidden></div></section>
+</main>
+<footer class="status"><span class="status-dot"></span><span id="notice" role="status">Studio ready.</span><a id="classic-link" href="../classic.html">Classic workshop <span aria-hidden="true">↗</span></a></footer>
+<input id="import-file" type="file" accept=".json,.oia,application/json" hidden>
+<dialog id="dialog"><div class="dialog-head"><div><span class="eyebrow" id="dialog-kicker">Workspace</span><h2 id="dialog-title"></h2></div><button id="dialog-close" aria-label="Close dialog"><span data-icon="close"></span></button></div><div id="dialog-body"></div><p id="dialog-error" role="status"></p></dialog>
+<section id="studio-startup" role="alert" hidden><h1>Opening engineering studio</h1><p>Preparing the assembly view.</p><a href="./index.html">Reload studio</a> · <a href="../classic.html">Open classic workshop</a></section>
+<script src="./startup.js"></script>
+<script type="module" src="./studio.mjs"></script>
+</body></html>

@@ -18,7 +18,7 @@ async function interchange(project, site, directory) {
   try {
     browser=await chromium.launch({channel:'msedge',headless:true});
     const page=await browser.newPage();page.setDefaultTimeout(15000);
-    await page.goto('http://127.0.0.1:'+server.address().port+'/workshop/index.html');
+    await page.goto('http://127.0.0.1:'+server.address().port+'/workshop/classic.html');
     await page.locator('#mode option').first().waitFor({state:'attached'});
     await page.locator('#file').setInputFiles(project);
     await page.locator('#confirm button[value="replace"]').click();

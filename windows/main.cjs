@@ -5,7 +5,9 @@ const {readBounded, projectLimit, projectText, saveAtomic, resolveAsset, convert
 
 protocol.registerSchemesAsPrivileged([{scheme:'workshop', privileges:{standard:true, secure:true, supportFetchAPI:true}}]);
 app.enableSandbox();
-const start = 'workshop://local/workshop/index.html';
+const start = 'workshop://local/workshop/studio/facility/index.html';
+const cell = 'workshop://local/workshop/studio/index.html';
+const classic = 'workshop://local/workshop/classic.html';
 let window;
 let runtime = 'C:\\isaacsim';
 let busy = false;
@@ -16,7 +18,7 @@ const {Pilot} = require('./engine.cjs');
 function hostAction(name, handler) {
   ipcMain.handle(name, async (event, ...args) => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
-        !['/workshop/index.html','/workshop/native/index.html'].includes(new URL(event.senderFrame.url).pathname) || !event.senderFrame.url.startsWith('workshop://local/')) throw Error('Workshop window required.');
+        !['/workshop/studio/facility/index.html','/workshop/studio/index.html','/workshop/classic.html','/workshop/native/index.html'].includes(new URL(event.senderFrame.url).pathname) || !event.senderFrame.url.startsWith('workshop://local/')) throw Error('Workshop window required.');
     if (name==='engine:poll' || name==='engine:status') return handler(...args);
     if (busy) throw Error('Finish the current file operation first.');
     busy = true;
@@ -92,7 +94,9 @@ async function run() {
   });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {label:'Workshop',submenu:[
-      {label:'Engineering workshop',click:() => window.loadURL(start)},
+      {label:'Facility overview',click:() => window.loadURL(start)},
+      {label:'Cell studio',click:() => window.loadURL(cell)},
+      {label:'Classic packaging workshop',click:() => window.loadURL(classic)},
       {label:'Reference plant',click:() => window.loadURL('workshop://local/index.html')},
       {type:'separator'},{role:'quit'}
     ]},
@@ -118,40 +122,53 @@ async function run() {
   window.webContents.setWindowOpenHandler(() => ({action:'deny'}));
   window.webContents.on('will-navigate',(event,url) => {if (!resolveAsset(site,url)) event.preventDefault();});
   window.webContents.on('will-attach-webview',event => event.preventDefault());
-  window.webContents.on('render-process-gone',async () => {
-    if (window.isDestroyed()) return;
-    const answer = await dialog.showMessageBox(window,{type:'warning',message:'The workshop view stopped. Reopen it to restore the last local checkpoint.',buttons:['Reopen','Close']});
-    if (!answer.response) await window.loadURL(start);
-    else window.close();
+  let recoveryRoute=start;
+  window.webContents.on('did-navigate',(_event,url)=>{
+    const page=url.split(/[?#]/)[0];
+    if([start,cell,classic].includes(page)) recoveryRoute=page;
   });
-  async function painted() {
-    const until=Date.now()+5000;
-    while(Date.now()<until) {
-      const ready=await window.webContents.executeJavaScript("Boolean(document.querySelector('#mode option') && document.querySelector('#place button') && document.querySelector('h1')?.textContent)").catch(()=>false);
-      if (ready) return true;
-      if (window.webContents.getURL()!==start && window.webContents.getURL().startsWith('workshop://local/')) {
-        const navigated=await window.webContents.executeJavaScript("Boolean(document.readyState==='complete' && document.querySelector('main') && !document.body.inert)").catch(()=>false);
-        if (navigated) return true;
-      }
+  async function initialised(url) {
+    const checks={
+      [start]:"document.body?.dataset.ready==='true' && !document.body.inert && document.querySelector('#facility-viewport canvas, #facility-viewport svg') && document.querySelector('#asset-select option')",
+      [cell]:"document.body?.dataset.ready==='true' && !document.body.inert && document.querySelector('#viewport canvas, #viewport svg') && document.querySelector('#asset-tree')",
+      [classic]:"!document.body?.inert && document.querySelector('#mode option') && document.querySelector('#place button')"
+    };
+    const expected=checks[url];
+    const until=Date.now()+6000;
+    while(!window.isDestroyed() && Date.now()<until) {
+      if (window.webContents.getURL().split(/[?#]/)[0]!==url) {
+        if (window.webContents.getURL().startsWith('workshop://local/')) {
+          const painted=await window.webContents.executeJavaScript("Boolean(document.readyState==='complete' && document.querySelector('main') && !document.body.inert)").catch(()=>false);
+          if(painted)return true;
+        }
+      }else if(await window.webContents.executeJavaScript('Boolean('+expected+')').catch(()=>false)) return true;
       await new Promise(resolve=>setTimeout(resolve,100));
     }
     return false;
   }
-  let ready=false;
-  for (let attempt=0;attempt<2 && !ready;attempt++) {
-    try { await window.loadURL(start); }
-    catch(error) { if (error.code!=='ERR_ABORTED') throw error; }
-    ready=await painted();
+  async function openSurface(first) {
+    for(const url of new Set([first,start,cell,classic])){
+      try{await window.loadURL(url);}catch(error){if(error.code!=='ERR_ABORTED')continue;}
+      if(await initialised(url)) return;
+    }
+    throw Error('The facility, cell studio and classic workshop could not initialise.');
   }
-  if (!ready) throw Error('The installed packaging workshop did not initialise.');
+  window.webContents.on('render-process-gone',async () => {
+    if (window.isDestroyed()) return;
+    const answer=await dialog.showMessageBox(window,{type:'warning',message:'The workshop view stopped. Reopen it to restore the last local checkpoint.',buttons:['Reopen','Close']});
+    if(answer.response){window.close();return;}
+    try{await openSurface(recoveryRoute);}catch(error){await showRecovery(error);}
+  });
+  await openSurface(start);
   if (!app.commandLine.hasSwitch('workshop-test-hidden')) window.show();
 }
-app.whenReady().then(run).catch(async error => {
+async function showRecovery(error){
   console.error('Workshop startup failed:',error.message);
   if (!window || window.isDestroyed()) {app.quit();return;}
   await window.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent('<!doctype html><meta charset=utf-8><title>Workshop recovery</title><h1>Workshop files could not be opened</h1><p>Reinstall the Windows workshop, then reopen your saved project.</p>'));
   if (!app.commandLine.hasSwitch('workshop-test-hidden')) window.show();
-});
+}
+app.whenReady().then(run).catch(showRecovery);
 app.on('window-all-closed',() => app.quit());
 
 

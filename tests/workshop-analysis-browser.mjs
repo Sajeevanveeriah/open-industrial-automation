@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {chromium} from 'playwright';
+import {createServer} from 'vite';
+const local=process.env.OIA_BASE_URL?null:await createServer({configFile:false,root:'dist',optimizeDeps:{noDiscovery:true},server:{host:'127.0.0.1',port:0}});
+await local?.listen();const base=(process.env.OIA_BASE_URL??local.resolvedUrls.local[0]).replace(/\/$/,'');
+const browser=await chromium.launch({executablePath:process.env.OIA_CHROMIUM||undefined});
+try{for(const width of [390,1440]){
+  const page=await browser.newPage({viewport:{width,height:900},acceptDownloads:true}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(base+'/workshop/studio/analysis/index.html');await page.getByText('Reference drive',{exact:false}).first().waitFor();
+  assert.equal(await page.locator('#drawing path').count(),2);
+  await page.getByText('Compare a parameter sweep',{exact:true}).click();await page.getByRole('button',{name:'Run sweep',exact:true}).click();assert.equal(await page.locator('#runs .run').count(),4);
+  await page.getByRole('checkbox',{name:'Show run 2'}).uncheck();assert.equal(await page.locator('#samples tr').count(),3);
+  await page.getByRole('button',{name:'Zoom in',exact:true}).click();assert.match(await page.locator('#view').innerText(),/3–9 s/);
+  await page.locator('#cursor').focus();await page.keyboard.press('ArrowRight');assert.ok(Number(await page.locator('#cursor').inputValue())>6);
+  await page.locator('#channel').selectOption('drive');assert.equal(await page.locator('#drawing path').count(),3);
+  await page.getByLabel('Operating mode').selectOption('coast');await page.getByLabel('Initial speed (m/s)').fill('1');await page.getByLabel('Run duration (s)').fill('2');await page.getByLabel('Disturbance load (N)').fill('0');await page.getByRole('button',{name:'Run experiment'}).click();
+  assert.match(await page.locator('#runs .run').last().innerText(),/Final 0.368 m\/s/);
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export visible runs as CSV'}).click();const download=await pending;const content=await readFile(await download.path(),'utf8');
+  assert.equal(content.trim().split('\r\n').length,1+601*3+101);assert.ok(!content.includes('\r\n2,'));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.addScriptTag({path:'node_modules/axe-core/axe.min.js'});
+  assert.deepEqual(await page.evaluate(async()=>(await axe.run()).violations.map(v=>v.id)),[]);assert.deepEqual(errors,[]);console.log(width+' px: initial trace, three-run sweep, visibility, zoom, keyboard cursor, coast-down and 1,904-sample CSV verified; zero axe violations and page errors.');await page.close();
+}}finally{await browser.close();await local?.close();}
