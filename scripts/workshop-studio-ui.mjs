@@ -31,15 +31,10 @@ async function panel(p,label,width){if(width<761)await p.locator('.mobile-tabs')
 async function inspect(p,id,width){await panel(p,'Assets',width);await p.locator('[data-asset="'+id+'"]').click();await panel(p,'Inspector',width);}
 async function ss(p,width){if(!process.env.OIA_WORKSHOP_SCREENSHOTS)return;await mkdir(process.env.OIA_WORKSHOP_SCREENSHOTS,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:resolve(process.env.OIA_WORKSHOP_SCREENSHOTS,'studio-'+width+'.png')});}
 try{
- browser=await chromium.launch({...process.env.OIA_CHROMIUM?{executablePath:process.env.OIA_CHROMIUM}:{},args:['--enable-unsafe-swiftshader']});
+ browser=await chromium.launch({executablePath:process.env.OIA_CHROMIUM||undefined});
  for(const width of [1440,390]){
   const c=await browser.newContext({viewport:{width,height:width===1440?900:844}}),p=await c.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(15000);
-  await p.goto(entry);await p.waitForURL(url=>url.pathname.endsWith('/studio/index.html')||url.pathname.endsWith('/facility/index.html'));
-  if(p.url()!==studio){
-    await p.waitForFunction(()=>['true','error'].includes(document.body?.dataset.ready),null,{timeout:45000});
-    assert.equal(await p.locator('body').getAttribute('data-ready'),'true','Facility startup: '+await p.locator('#recovery-cause').textContent()+' / '+errors.join(' / '));
-    await p.locator('#cell-studio').click();
-  }
+  await p.goto(studio);
   await p.waitForURL(studio);await ready(p);
   assert.equal(await p.locator('#asset-tree .asset-row').count(),10);assert.ok(await p.locator('#viewport canvas,#viewport svg').count()>0);assert.equal(await p.locator('.viewport-error').count(),0);
   await diagnose(p,width);await ss(p,width);await checkStudioPracticals(p,width);

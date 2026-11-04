@@ -10,7 +10,9 @@ try{
     const page=await browser.newPage({viewport:{width,height:900},acceptDownloads:true}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     const click=id=>page.locator('#'+id).click();
-    await page.goto(base+'/workshop/studio/facility/index.html');await page.waitForFunction(()=>document.body.dataset.ready==='true'&&!document.body.inert);
+    page.on('crash',()=>console.error('Facility renderer crashed at '+page.url()));
+    page.on('console',msg=>{if(msg.type()==='error')console.error('Facility console: '+msg.text());});
+    await page.goto(base+'/workshop/index.html');await page.waitForURL('**/studio/facility/index.html');await page.waitForFunction(()=>document.body.dataset.ready==='true'&&!document.body.inert);
     const renderer=await page.locator('#facility-viewport').getAttribute('data-renderer');assert.ok(['webgl','plan'].includes(renderer));
     const started=await page.locator('#clock').innerText();await page.waitForFunction(t=>document.getElementById('clock').textContent!==t,started);
     await click('toggle-play');const paused=await page.locator('#clock').innerText();await page.waitForTimeout(350);assert.equal(await page.locator('#clock').innerText(),paused);
