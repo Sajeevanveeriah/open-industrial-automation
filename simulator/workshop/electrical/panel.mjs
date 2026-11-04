@@ -25,3 +25,5 @@ $('open').onclick=act(()=>{const i=$('cable').selectedIndex;if(i>=0)net.wires.sp
 $('edit').onclick=act(()=>{const clone=structuredClone(net),p=clone.parts.find(q=>q.id===$('part').value);for(const el of $('settings').querySelectorAll('input'))p[el.id.slice(4)]=el.type==='checkbox'?el.checked:el.type==='number'?el.valueAsNumber:el.value;if(p.kind==='fuse')p.blown=false;net=readNet(clone);draw();$('result').textContent='Setting applied. Take a fresh sample.';});
 $('read').onclick=act(()=>{const r=sample(net,coils);coils=r.coils;const a=r.voltage[$('a').value],b=r.voltage[$('b').value];$('result').textContent=a==null||b==null?'Voltage undefined: floating probe.':(a-b).toFixed(3)+' V DC';$('outputs').textContent='Supply '+r.supplyAmps.toFixed(3)+' A\nEnergised coils: '+(r.coils.join(', ')||'none')+'\nActive loads: '+(r.live.join(', ')||'none')+'\n'+Object.entries(r.currents).map(([id,i])=>id+': '+(1000*i).toFixed(2)+' mA').join('\n');settings();});
 $('back').onclick=save;
+
+document.querySelector('main').inert = false;

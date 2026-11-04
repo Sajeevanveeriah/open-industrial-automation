@@ -80,3 +80,5 @@ listen('return','click',persist);
 setOpts($('kind'),Object.entries(kinds).map(([k,v])=>[k,v[0]]),'room');
 try {const incoming=JSON.parse(sessionStorage.getItem(transfer)||'null');if(incoming)layout=validate(incoming.layout??incoming);context=JSON.parse(sessionStorage.getItem(contextKey)||'[]');} catch(err){msg(err.message);}
 chooseKind();fit();render();
+
+document.querySelector('main').inert = false;

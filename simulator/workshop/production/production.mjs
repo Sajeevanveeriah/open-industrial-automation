@@ -99,3 +99,5 @@ $('compare').onclick=()=>invoke(()=>{const pair=counterexample();
   $('comparison').textContent=pair.map(x=>x.start+'-'+x.end+' s: '+format(x.packed)+' kg packed; cumulative availability '+(100*x.availability).toFixed(2)+'% ('+x.running+' / '+x.planned+' s).').join('\n')+'\nRunning time increased while the packer stopped producing. Use delivered kilograms and service demand alongside availability.';});
 $('export').onclick=()=>invoke(()=>{const bundle={format:'oia-production-study',version:1,run:JSON.parse(exportRun(state)),operations:ledger.operations.map(({kind,output,parents,loss})=>({kind,output,parents,loss})),finding:$('finding').value,conservation:review(state).conservation};
   const url=URL.createObjectURL(new Blob([JSON.stringify(bundle)],{type:'application/json'})),a=e('a');a.href=url;a.download='production-study.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);message('Exported replay, study operations and finding.');});
+
+document.querySelector('main').inert = false;

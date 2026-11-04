@@ -20,6 +20,15 @@ await cp(resolve('node_modules/sql.js/LICENSE'),resolve(sqlVendor,'LICENSE.txt')
 const modules=new Map();
 for(const f of await readdir(target,{recursive:true}))if(/\.(mjs|js)$/.test(f)&&f!=='sw.js'&&!f.includes('occt-import-js')){const path=resolve(target,f),code=await readFile(path,'utf8');modules.set(path,{code,hash:createHash('sha256').update(code).digest('hex').slice(0,12)});}
 for(const [path,{code}] of modules)await writeFile(path,code.replace(/((?:from\s+|import\s*)['"])(\.\/[^'"]+\.(?:mjs|js))(['"])/g,(all,prefix,file,quote)=>{const dep=modules.get(resolve(dirname(path),file));return dep?`${prefix}${file}?v=${dep.hash}${quote}`:all;}));
+for (const relative of await readdir(resolve(target,'workshop'),{recursive:true})) {
+  if (!relative.endsWith('index.html')) continue;
+  const path=resolve(target,'workshop',relative);
+  const markup=await readFile(path,'utf8');
+  const entry=markup.match(/<script type="module" src="([^"]+)"/);
+  if (!entry) continue;
+  const version=createHash('sha256').update(await readFile(resolve(dirname(path),entry[1]))).digest('hex').slice(0,12);
+  await writeFile(path,markup.replace(entry[0],entry[0].slice(0,-1)+'?v='+version+'"'));
+}
 let html=await readFile(resolve(target,'index.html'),'utf8');
 for(const file of ['styles.css','app.mjs']){const hash=createHash('sha256').update(await readFile(resolve(target,file))).digest('hex').slice(0,12);html=html.replace(file+'?v=potato-systems-10',file+'?v=potato-systems-10-'+hash);}
 await writeFile(resolve(target,'index.html'),html);

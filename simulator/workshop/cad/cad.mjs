@@ -92,3 +92,5 @@ try {
   if(prior?.sourceChunks){$('reopen').hidden=false;$('reopen').onclick=()=>load(false,prior);}
   else if(prior?.name==='Parametric bracket'&&Number.isFinite(prior.widthM)){$('reopen').hidden=false;$('reopen').onclick=()=>{$('width').value=prior.widthM*1000;$('generate').click();};}
 } catch { $('status').textContent='Stored CAD metadata could not be read.'; }
+
+document.querySelector('main').inert = false;
