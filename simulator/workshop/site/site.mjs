@@ -102,5 +102,6 @@ listen('return','click',persist);
 setOpts($('kind'),Object.entries(kinds).map(([k,v])=>[k,v[0]]),'room');
 try {const incoming=JSON.parse(sessionStorage.getItem(transfer)||'null');if(incoming){const candidate=validate(articulate(validate(incoming.layout??incoming)));checkTimeline(candidate);layout=candidate;}context=JSON.parse(sessionStorage.getItem(contextKey)||'[]');} catch(err){msg(err.message);}
 chooseKind();fit();render();
+$('part-id').disabled=false;
 
 document.body.inert = false;

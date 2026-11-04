@@ -54,7 +54,7 @@ try{
   await p.locator('#import-file').setInputFiles({name:'round-trip.oia.json',mimeType:'application/json',buffer:Buffer.from(exported)});await p.waitForFunction(()=>document.querySelectorAll('#asset-tree .asset-row').length===10);
   await p.click('#benches');const links=await p.locator('.tool-link').evaluateAll(items=>items.map(a=>({href:a.href,text:a.querySelector('strong').textContent})));
   assert.ok(links.length>=13);for(const dest of links)assert.equal((await p.request.get(dest.href)).status(),200,dest.text);
-  const site=p.getByRole('link',{name:/Site assembly/});await site.click();await p.fill('#part-id','STUDIO-SITE-01');await p.locator('#add button').click();await p.click('#return');await p.waitForURL(studio);await ready(p);
+  const site=p.getByRole('link',{name:/Site assembly/});await site.click();await p.waitForFunction(()=>!document.body.inert && document.querySelector('#kind')?.options.length>0 && !document.querySelector('#part-id').disabled);await p.fill('#part-id','STUDIO-SITE-01');await p.locator('#add button').click();await p.click('#return');await p.waitForURL(studio);await ready(p);
   assert.match(JSON.stringify(loadProject(await raw(p)).extensions.layout),/STUDIO-SITE-01/);
   await p.click('#analysis');await p.locator('header a[href="../index.html"]').click();await ready(p);
   await p.click('#part-design');const partReturn=p.locator('a[href="../index.html"]').first();await partReturn.click();await ready(p);
