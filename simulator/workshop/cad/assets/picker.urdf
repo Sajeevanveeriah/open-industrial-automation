@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<robot name="training_picker">
+  <link name="base"><visual><geometry><box size="0.30 0.30 0.08"/></geometry></visual></link>
+  <link name="mast"><visual><origin xyz="0 0 0.35"/><geometry><box size="0.10 0.10 0.70"/></geometry></visual></link>
+  <joint name="base_mount" type="fixed"><parent link="base"/><child link="mast"/><origin xyz="0 0 0.04"/></joint>
+  <link name="slide"><visual><origin xyz="0.20 0 0"/><geometry><box size="0.50 0.08 0.08"/></geometry></visual></link>
+  <joint name="travel" type="prismatic"><parent link="mast"/><child link="slide"/><origin xyz="0 0 0.60"/><axis xyz="1 0 0"/><limit lower="0" upper="0.40" effort="10" velocity="0.25"/></joint>
+</robot>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
-import {resolve,extname} from 'node:path';
+import {resolve,extname,sep} from 'node:path';
 import {chromium} from 'playwright';
 // Serve an actual cache-first legacy session, then replace its server release.
 // No reload/clear-data operation is permitted after the worker update.
@@ -19,7 +19,7 @@ const server=createServer(async(req,res)=>{
    res.end('<!doctype html><title>Old water application</title><h1>TK-101 MIX TANK</h1>');return;
   }
   const relative=path.slice(prefix.length)+(path.endsWith('/')?'index.html':'');
-  const file=resolve('dist',relative);if(!file.startsWith(resolve('dist')+'/'))throw Error();res.end(await readFile(file));
+  const file=resolve('dist',relative);if(!file.startsWith(resolve('dist')+sep))throw Error();res.end(await readFile(file));
  }catch{res.writeHead(404);res.end('Missing');}
 });
 await new Promise(r=>server.listen(4186,'127.0.0.1',r));

@@ -28,10 +28,12 @@ jobs:
       - run: npm run test:simulation
       - run: npm run verify:source
       - run: npm run build
+      - run: npm run test:workshop
       - run: npm run test:delivery
       - run: npx playwright install --with-deps chromium
       - run: npm run test:migration
       - run: npm run test:simulation-ui
+      - run: npm run test:workshop-ui
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -94,6 +96,7 @@ jobs:
           set -euo pipefail
           export OIA_BASE_URL="${OIA_BASE_URL%/}"
           npm run test:simulation-ui
+          npm run test:workshop-ui
       - name: Upload live deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
