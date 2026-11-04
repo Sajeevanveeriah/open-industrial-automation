@@ -44,6 +44,14 @@ Open the [live facility](https://sajeevanveeriah.github.io/open-industrial-autom
 
 **Part design** opens an editable cross-section beside its solid. Drag a vertex or change a dimension, inspect the resulting part and mount it on the cell bracket. **Analysis** opens the drive response lab for parameter sweeps, trace comparison, point inspection and CSV export. The [Classic workshop](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/classic.html) remains available for existing projects, commissioning and specialist exercises.
 
+### Start a hands-on assignment
+
+- [Dispatch operator](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/studio/facility/index.html?job=operator): read the ticket, locate the matching stock, reserve it, identify the assigned truck and reconcile the dispatch receipt. A pallet identifies one load. Its lot identifies the batch it came from.
+- [Incident controller](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/studio/facility/index.html?job=incident): inspect a failed delivery, preserve the identity of the load and recover it to an available dock.
+- [Miswired photoeye](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/studio/index.html?practical=wiring): predict the active terminal, observe the failed count, repair the cell and prove the fix on a changed case.
+- [Build a bracket](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/studio/part/index.html?practical=bracket): predict the volume, edit the profile and depth, inspect the dimensions against the drawing and mount the verified revision.
+- [Commission a drive](https://sajeevanveeriah.github.io/open-industrial-automation/workshop/studio/analysis/index.html?practical=drive): predict holding force and tune a proportional-integral controller to meet rise, recovery and overshoot limits under two loads.
+
 The distribution floor is a synthetic facility. Its operating ledger tracks storage and vehicle loads, dock staging and dispatch. Rack, forklift, pallet truck and pallet visual meshes are derived from NVIDIA's CC BY 4.0 Physical AI SimReady Warehouse collection. The live scene uses the workshop simulation. [Sources, licence and geometry modifications](simulator/workshop/studio/facility/assets/ATTRIBUTION.md).
 
 In Classic, open **CAD and engine workspace > Open CAD import bench**. Open the photoeye STEP assembly, inspect its 0.100 m base and use it in the packaging cell. Select a bracket and apply the measured width. Both editions convert the same self-contained STEP files locally. The part source accompanies the portable project as inert data. The model's design and runtime limits are documented in [the acceptance register](TASKS.md).

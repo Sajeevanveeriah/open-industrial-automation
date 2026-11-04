@@ -44,6 +44,7 @@ async function waitForRecovered(app, url, expression) {
       const url = base + item.route;
       if (page.url() !== url) await page.goto(url);
       if (item.name === 'facility') {
+        if(await page.locator('#shift-free').isVisible())await page.locator('#shift-free').click();
         if ((await page.locator('#toggle-play').innerText()).includes('Pause')) await page.locator('#toggle-play').click();
         await page.locator('#asset-select').selectOption('AMR-01');
         await page.locator('#fault-toggle').click();

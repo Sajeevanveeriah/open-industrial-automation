@@ -1,12 +1,19 @@
+import {drawings,drawingBrief,attempt,recordPrediction,angleProfile,geometryKey,checkBracket} from './bracket-practical.mjs';
 import {initialPart,analyse,moveVertex,resizeSketch,stlBytes,drawingSvg,projectContext,persistPart} from './part-model.mjs';
 const $=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg',rad=Math.PI/180;
 let part=initialPart(),context=null,selected=3,undo=[],redo=[],drag=null,sliderStart=null,sketchMap,model,az=-53,el=27,orbit=null;
-const status=s=>{$('status').textContent=s;},fmt=(n,d=3)=>Number(n.toFixed(d)).toString();
+let activeAttempt=null,verifiedKey='',freePart=null,practicalMounted=false;
+const status=s=>{$('status').textContent=s;if(activeAttempt)$('drawing-status').textContent=s;},fmt=(n,d=3)=>Number(n.toFixed(d)).toString();
 try{context=projectContext(localStorage);if(context.part)part=structuredClone(context.part);}catch(e){status('Saved project unavailable: '+e.message);}
 function element(parent,tag,attrs,text){const e=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;parent.append(e);return e;}
 function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
 function remember(previous){if(same(previous,part))return;undo.push(previous);if(undo.length>60)undo.shift();redo=[];}
-function apply(next,record=true){const prior=part,result=analyse(next);part=next;model=result;if(record)remember(prior);render();}
+function apply(next,record=true){const prior=part,result=analyse(next);
+  if(activeAttempt&&geometryKey(next)!==geometryKey(prior)){
+    if(activeAttempt.prediction===null)throw Error('Record your predicted volume before editing the starter.');
+    activeAttempt.edited=true;verifiedKey='';practicalMounted=false;$('drawing-checks').replaceChildren();$('inspect-mounted').hidden=true;$('drawing-status').textContent='Geometry changed. Verify this revision before mounting.';
+  }
+  part=next;model=result;if(record)remember(prior);render();}
 function perform(fn){try{fn();}catch(e){status(e.message);}}
 function repaintSolid(){
   const canvas=$('solid'),ctx=canvas.getContext('2d'),{p,i}=model.mesh,n=p.length/3,points=[],min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
@@ -64,6 +71,14 @@ function render(){
   $('measure').textContent='Section '+fmt(model.areaMM2)+' mm² · nominal solid volume '+fmt(model.volumeMM3/1000)+' cm³.';
   $('undo').disabled=!undo.length;$('redo').disabled=!redo.length;$('project').textContent=context?'Active learner: '+context.profile+'. '+(part.mount?'Mounted on '+part.mount.assetId+'.':'Part is independent of the cell.'):'Active project could not be opened.';
   $('mount').textContent=context?.bracket?'Mount on '+context.bracket+' and return':'Place bracket, mount and return';$('mount').disabled=$('save').disabled=!context;
+  $('wall-form').hidden=!activeAttempt;$('practical').hidden=!activeAttempt;$('practical-start').hidden=Boolean(activeAttempt);
+  $('save').textContent=activeAttempt?'Save practical draft':'Save into active project';
+  if(activeAttempt){
+    $('mount').disabled=true;$('mount').textContent='Mount using drawing verification';
+    $('mount-verified').disabled=!context||practicalMounted||verifiedKey!==geometryKey(part);
+    $('volume-prediction').disabled=activeAttempt.edited;
+    $('predict-form').querySelector('button').disabled=activeAttempt.edited;
+  }
 }
 const svgXY=e=>new DOMPoint(e.clientX,e.clientY).matrixTransform($('sketch').getScreenCTM().inverse());
 $('handles').onpointerdown=e=>{const index=e.target.dataset.index;if(index===undefined)return;e.preventDefault();selected=Number(index);e.target.focus();drag={previous:structuredClone(part),pointer:e.pointerId};$('sketch').setPointerCapture(e.pointerId);sketch();};
@@ -90,5 +105,53 @@ $('elevation').oninput=e=>{el=Number(e.target.value);repaintSolid();};
 function download(content,mime,name){const url=URL.createObjectURL(new Blob([content],{type:mime})),a=document.createElement('a');a.download=name;a.href=url;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $('mesh').onclick=()=>perform(()=>download(stlBytes(part),'model/stl','studio-part-mm.stl'));$('drawing').onclick=()=>perform(()=>download(drawingSvg(part),'image/svg+xml','studio-part-drawing.svg'));
 function store(mount){perform(()=>{context=persistPart(localStorage,context,part,mount);part=structuredClone(context.part);render();status('Saved to '+context.profile+'’s active project.');if(mount)location.assign('../index.html');});}
-$('save').onclick=()=>store(false);$('mount').onclick=()=>store(true);
+$('save').onclick=()=>activeAttempt?perform(()=>{sessionStorage.setItem(draftKey(),JSON.stringify({attempt:activeAttempt,part}));status('Practical draft saved in this tab.');}):store(false);$('mount').onclick=()=>store(true);
+function draftKey(){return 'oia-bracket-practical/'+encodeURIComponent(context?.profile||'Learner')+'/'+String(context?.seed??0)+'/'+String(context?.origin||'blank');}
+function evidence(){
+  const records=context?.records||[],latest=records.at(-1);$('export-drawing-evidence').hidden=!records.length;
+  $('drawing-evidence').textContent=!latest?'No mounted drawing evidence in this project.':records.length+' mounted record'+(records.length===1?'':'s')+'. Latest: '+String(latest.drawing?.title||'Bracket')+' / '+String(latest.assetId)+' / predicted '+Number(latest.predictedCM3).toFixed(3)+' cm³ / measured '+Number(latest.measured?.volumeCM3).toFixed(3)+' cm³.';
+}
+function showTarget(){
+  const d=activeAttempt.brief;
+  for(const k of ['title','width','height','wall','depth','tolerance','volumeTolerance'])$('brief-'+k).value=d[k];
+  $('drawing-choice').querySelector('option[value="custom"]')?.remove();
+  if(d.id==='custom')$('drawing-choice').add(new Option('Custom · '+d.title,'custom'));$('drawing-choice').value=d.id;
+  $('drawing-need').textContent=d.title+'. Fit an L-section '+d.width+' × '+d.height+' mm, with two '+d.wall+' mm walls and '+d.depth+' mm extrusion. Each indicated geometry tolerance is ±'+d.tolerance+' mm. The predicted and measured volumes must each be within ±'+d.volumeTolerance+' cm³ of the drawing volume.';
+  const drawing=$('target-view');drawing.replaceChildren();const scale=Math.min(215/d.width,99/d.height),X=x=>30+x*scale,Y=z=>128-z*scale;
+  element(drawing,'polygon',{points:angleProfile(d.width,d.height,d.wall).map(([x,z])=>X(x)+','+Y(z)).join(' '),fill:'#bdd7cb',stroke:'#245b4c','stroke-width':2});
+  const line=(x1,y1,x2,y2)=>element(drawing,'line',{x1,y1,x2,y2,stroke:'#46665f'});
+  line(30,138,X(d.width),138);line(30,133,30,143);line(X(d.width),133,X(d.width),143);
+  line(X(d.width)+13,Y(d.height),X(d.width)+13,128);line(X(d.width)+8,Y(d.height),X(d.width)+18,Y(d.height));line(X(d.width)+8,128,X(d.width)+18,128);
+  element(drawing,'text',{x:31,y:159,fill:'#23493f','font-size':12},d.width+' mm');
+  element(drawing,'text',{x:X(d.width)+19,y:(Y(d.height)+128)/2,fill:'#23493f','font-size':12},d.height+' mm');
+  element(drawing,'text',{x:30,y:20,fill:'#23493f','font-size':12},'End view · wall '+d.wall+' mm');
+  $('drawing-checks').replaceChildren();$('volume-prediction').value=activeAttempt.prediction??'';$('wall-size').value='';
+  $('drawing-status').textContent=activeAttempt.prediction===null?'Record your prediction, then modify the starter.':'Prediction recorded. Edit the starter and verify the result.';
+  evidence();
+}
+function begin(brief,restore=false){
+  const a=attempt(brief);let next=a.start;freePart??=structuredClone(part);
+  if(restore){
+    try{const draft=JSON.parse(sessionStorage.getItem(draftKey())||'null');if(draft){
+      const b=attempt(draft.attempt.brief);if(draft.attempt.prediction!==null)recordPrediction(b,draft.attempt.prediction);
+      analyse(draft.part);b.edited=geometryKey(b.start)!==geometryKey(draft.part)||draft.attempt.edited===true;
+      if(b.edited&&b.prediction===null)throw Error('Draft prediction missing.');Object.assign(a,b);next=draft.part;
+    }}catch{}
+  }
+  activeAttempt=a;part=structuredClone(next);delete part.mount;practicalMounted=false;verifiedKey='';selected=3;undo=[];redo=[];model=analyse(part);
+  $('inspect-mounted').hidden=true;showTarget();render();$('practical').scrollIntoView({block:'start'});
+}
+$('practical-start').onclick=()=>perform(()=>begin(drawings.A,true));
+$('practical-leave').onclick=()=>{part=structuredClone(practicalMounted?context.part:freePart);activeAttempt=null;freePart=null;verifiedKey='';undo=[];redo=[];selected=3;model=analyse(part);render();};
+$('drawing-choice').onchange=()=>perform(()=>{const d=drawings[$('drawing-choice').value];if(d)begin(d);});
+$('brief-form').onsubmit=e=>{e.preventDefault();perform(()=>{const record={title:$('brief-title').value};for(const k of ['width','height','wall','depth','tolerance','volumeTolerance'])record[k]=Number($('brief-'+k).value);begin(drawingBrief(record));});};
+$('restart-drawing').onclick=()=>perform(()=>begin(activeAttempt.brief));
+$('predict-form').onsubmit=e=>{e.preventDefault();perform(()=>{recordPrediction(activeAttempt,Number($('volume-prediction').value));verifiedKey='';status('Prediction recorded. Edit the geometry and verify it.');render();});};
+$('wall-form').onsubmit=e=>{e.preventDefault();perform(()=>{const t=Number($('wall-size').value);if(!Number.isFinite(t)||t<=0||t>=Math.min(model.width,model.height))throw Error('Enter a positive wall smaller than both outside dimensions.');
+ apply({...part,profile:angleProfile(model.width,model.height,t,model.minX,model.minZ)});status('Equal wall thickness applied. Verify the changed geometry.');});};
+$('verify-drawing').onclick=()=>perform(()=>{const result=checkBracket(activeAttempt,part);$('drawing-checks').replaceChildren(...result.checks.map(([name,ok,detail])=>{const li=document.createElement('li');li.textContent=(ok?'PASS':'REWORK')+' · '+name+' · '+detail;return li;}));verifiedKey=result.pass?geometryKey(part):'';status(result.pass?'Inspection passed. Mount this verified revision to capture evidence.':'Inspection failed. Correct the indicated values or retry with a new prediction.');render();});
+$('export-drawing-evidence').onclick=()=>perform(()=>download(JSON.stringify({format:'oia-part-inspection',version:1,units:{geometry:'mm',profileArea:'mm²',volume:'cm³'},records:context.records},null,2),'application/json','bracket-inspection-register.json'));
+$('mount-verified').onclick=()=>perform(()=>{if(verifiedKey!==geometryKey(part)||!checkBracket(activeAttempt,part).pass||practicalMounted)throw Error('Verify this drawing revision before mounting.');
+ context=persistPart(localStorage,context,part,true,activeAttempt);part=structuredClone(context.part);freePart=structuredClone(part);practicalMounted=true;sessionStorage.removeItem(draftKey());evidence();$('inspect-mounted').hidden=false;status('Bracket mounted and drawing evidence saved to the active project.');render();});
 model=analyse(part);render();
+if(new URLSearchParams(location.search).get('practical')==='bracket')begin(drawings.A,true);

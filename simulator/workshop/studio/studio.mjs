@@ -1,3 +1,4 @@
+import {installPracticals} from './practical-ui.mjs';
 import {createProject,addAsset,configure,connect,addCarton,step,command,inspect,saveProject,loadProject,assess} from '../model.mjs';
 import {icon,catalogue,ports,propNames,choices,benches} from './catalogue.mjs';
 const $=id=>document.getElementById(id);
@@ -5,6 +6,7 @@ const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefi
 for(const slot of document.querySelectorAll('[data-icon]'))slot.replaceChildren(icon(slot.dataset.icon));
 const profileKey='oia-workshop-profile-v1',returnKey='oia-studio-bench-return-v1';
 let profile='Learner',project,selected='',viewport=null,undo=[],timer=0,lastTime=0,carry=0,viewMode='iso',lesson=null,shownConsole='measure';
+let practicalUI;
 let writable=true,dirty=false,knownSlot=null,alertGiven=false,storageWarning='';
 const facilityLink=node('a','Live facility','facility-link');facilityLink.id='live-facility';facilityLink.href='./facility/index.html';document.querySelector('.mast-space').after(facilityLink);
 facilityLink.onclick=e=>{try{prepBench('facility');}catch(error){e.preventDefault();notify(error.message,true);}};
@@ -119,7 +121,7 @@ function drawRuntime(){
 }
 function drawAll(){
  quickTransport();projectHelp.textContent=lesson?'Follow the timing practical and compare measured sensor crossings.':project.assets.length?'Inspect an asset, change its properties or run the cell to follow a carton.':'Start with a conveyor, then place the sensor and wire its input.';const guided=Boolean(lesson);$('project-title').textContent=guided?'Photoeye timing':project.start==='reference'?'Packaging cell':'Free build cell';$('project-kind').textContent=guided?'Guided practical':project.start==='reference'?'Reference design':'Free build';
- $('meta').textContent=project.assets.length+' assets · '+project.links.length+' connections';drawTree();drawProperties();drawRuntime();drawLesson();
+ $('meta').textContent=project.assets.length+' assets · '+project.links.length+' connections';drawTree();drawProperties();drawRuntime();drawLesson();practicalUI?.draw();
  try{$('restore').disabled=!localStorage.getItem(localKey('studio:checkpoint'));}catch{$('restore').disabled=true;}
 }
 function launch(){
@@ -245,4 +247,6 @@ restoreActive();
  const {createViewport}=await import('./viewport.mjs');
  viewport=await createViewport($('viewport'),{onSelect:id=>select(id),onMove:(id,patch)=>{try{edit(()=>configure(project,id,patch),'Geometry updated.');select(id);}catch(e){notify(e.message,true);}}});
 }
-drawAll();persist();document.body.inert=false;document.body.dataset.ready='true';
+practicalUI=installPracticals({active:()=>project,replace:freshView,save:saveProject,load:loadProject,pause,
+ sync:()=>{undo=[];mark();persist();drawAll();},inspectAsset:id=>select(id,true),notify,guard:guarded,key:localKey});
+drawAll();persist();practicalUI.openFromURL();document.body.inert=false;document.body.dataset.ready='true';

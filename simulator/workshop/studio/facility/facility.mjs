@@ -1,8 +1,10 @@
 import {createFacility,advance,act,totals,availableStock,loadFacility,saveFacility,PRODUCTS,DT} from './facility-model.mjs';
 const $=id=>document.getElementById(id),make=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+import {shiftDesk} from './shift-desk.mjs';
 import {openRecovery,writeRecovery,rearmRecovery} from './recovery.mjs';
 let storage;try{storage=window.localStorage;}catch{}
 const recovery=openRecovery(storage);
+let desk,freeState,freeView;
 let s,scene,selected,tracked,camera='follow',speed=1,running=!matchMedia('(prefers-reduced-motion: reduce)').matches,carry=0,lastTime,pose=[],lastRender=0,lastPanel=0,lastSave=0,lastText='',selectionStamp='',noticeTimer;
 const flags={inspect:true,list:innerWidth>740,journey:innerWidth>740};
 const find=(rows,id)=>rows.find(o=>o.id===id),tables=['vehicles','bays','aisles','doors','conveyors','orders'],sku=id=>PRODUCTS.find(p=>p.sku===id)?.name??id;
@@ -13,8 +15,11 @@ function setView(view){
   camera=view;scene?.view(view);
   for(const [id,mode] of [['follow','follow'],['overview','overview'],['aisle-camera','aisle'],['dock-camera','dock'],['plan','plan']])$(id).setAttribute('aria-pressed',String(mode===view));
 }
-function persist(){const was=recovery.writable;if(!writeRecovery(recovery,storage,s,{running,speed,selected,camera})&&was)report(recovery.issue);}
-function runAction(name,data){const message=act(s,name,data);persist();update(true);report(message);return message;}
+function persist(){if(desk?.active){desk.persist();return;}const was=recovery.writable;if(!writeRecovery(recovery,storage,s,{running,speed,selected,camera})&&was)report(recovery.issue);}
+function runAction(name,data){
+  try{desk?.before(name,data);}catch(error){desk?.fail(error);throw error;}
+  const message=act(s,name,data);desk?.after(name,data);persist();update(true);report(message);return message;
+}
 function guard(fn){return async e=>{try{await fn(e);}catch(err){if($('dialog').open)$('dialog-message').textContent=err.message;else report(err.message);}};}
 function relate(o,table){
   if(table==='orders')return o;
@@ -25,7 +30,7 @@ function relate(o,table){
 }
 function select(id,focus=true){
   const {asset:a,table}=lookup(id);if(!a)return;
-  selected=id;const order=relate(a,table);if(order)tracked=order.id;
+  selected=id;desk?.observed(id);const order=relate(a,table);if(order)tracked=order.id;
   $('asset-select').value=table==='orders'?'':id;scene?.select(table==='orders'?(order.vehicle||order.bay):id);
   if(focus){
     if(table==='vehicles'||(table==='orders'&&order.vehicle))setView('follow');
@@ -86,7 +91,7 @@ function update(force=false){
   $('k-orders').textContent=pending.length;$('k-queue').textContent=pending.filter(o=>o.status==='queued').length+' awaiting pick';
   $('k-fill').textContent=(100*t.rack/(s.bays.length*3)).toFixed(1)+'%';$('k-stock').textContent=t.rack+' / '+s.bays.length*3+' positions';
   $('k-busy').textContent=Math.round(100*busy/(s.tick*s.vehicles.length))+'%';$('k-sent').textContent=t.sent;
-  $('clock').textContent=clock(s.tick);$('toggle-play').textContent=running?'Pause':'Play';$('toggle-play').setAttribute('aria-label',running?'Pause simulation':'Resume simulation');if(flags.inspect)inspect();if(flags.journey)journey();activity();
+  $('clock').textContent=clock(s.tick);$('toggle-play').textContent=running?'Pause':'Play';$('toggle-play').setAttribute('aria-label',running?'Pause simulation':'Resume simulation');if(flags.inspect)inspect();if(flags.journey)journey();activity();desk?.draw();
 }
 function poses(){return s.vehicles.map(v=>({x:v.x,y:v.y,heading:v.heading,forkHeightM:v.forkHeightM}));}
 function animate(now){
@@ -112,7 +117,7 @@ function field(form,label,options,value){const l=make('label',label),input=make(
 function button(where,title,fn,id){const b=make('button',title);b.type='button';if(id)b.id=id;b.onclick=guard(fn);where.append(b);return b;}
 function orderForm(order=null,bayId=null,doorId=null){
   const body=dialog(order?'Redirect '+order.id:'Create a dispatch order'),form=make('form');body.append(form);
-  const p=field(form,'Product',PRODUCTS.map(p=>[p.sku,p.sku+' · '+p.name]),order?.sku||find(s.bays,bayId)?.stock[0]?.sku);p.disabled=!!order;
+  const p=field(form,'Product',PRODUCTS.map(p=>[p.sku,p.sku+' · '+p.name]),order?.sku||desk?.active?.ticket.sku||find(s.bays,bayId)?.stock[0]?.sku);p.disabled=!!order;
   const b=field(form,'Reserve from rack bay',[]),d=field(form,'Dispatch door',s.doors.map(a=>[a.id,a.id+' · '+a.trailer+(a.open?'':' · closed')]),order?.door||doorId);
   function refresh(){
     b.replaceChildren();const rows=s.bays.filter(a=>order?.status==='delivering'?a.id===order.bay:(order?.bay===a.id||availableStock(s,a).some(x=>x.sku===p.value)));
@@ -132,9 +137,9 @@ function scenario(){
     },'replace-recovery');
   }
   button(row,'Export scenario',async()=>{const text=saveFacility(s);if(window.workshopHost?.saveProject){if(await window.workshopHost.saveProject(text))$('dialog-message').textContent='Scenario exported.';}else{download(text,'facility-scenario.json');$('dialog-message').textContent='Scenario exported.';}},'scenario-export');
-  button(row,'Import scenario',async()=>{if(window.workshopHost?.openProject){const text=await window.workshopHost.openProject();if(text!==null&&text!==undefined)confirmImport(text);}else $('scenario-file').click();},'scenario-import');
+  button(row,'Import scenario',async()=>{if(desk?.active)throw Error('Return to Free shift before opening a different facility scenario.');if(window.workshopHost?.openProject){const text=await window.workshopHost.openProject();if(text!==null&&text!==undefined)confirmImport(text);}else $('scenario-file').click();},'scenario-import');
   button(row,s.auto?'Stop automatic demand':'Enable automatic demand',()=>{runAction('auto',{enabled:!s.auto});scenario();},'auto-demand');
-  button(row,'Restart demonstration',()=>{if(confirm('Replace the current facility run with the original demonstration?')){s=createFacility();running=!matchMedia('(prefers-reduced-motion: reduce)').matches;carry=0;chooseInitial();persist();$('dialog').close();}},'restart');
+  button(row,'Restart demonstration',()=>{if(desk?.active)throw Error('Use Choose a job to retry this assignment or return to Free shift.');if(confirm('Replace the current facility run with the original demonstration?')){s=createFacility();running=!matchMedia('(prefers-reduced-motion: reduce)').matches;carry=0;chooseInitial();persist();$('dialog').close();}},'restart');
   const credits=make('p','Geometry adapted from NVIDIA Corporation’s Physical AI SimReady Warehouse OpenUSD Dataset. Offline visual meshes are transformed, simplified and recoloured under CC BY 4.0. '),link=make('a','Full attribution, licence and source layers');link.href='./assets/ATTRIBUTION.md';credits.append(link);body.append(credits);
   button(row,'Download dispatch register',()=>{const records=s.doors.flatMap(d=>d.dispatched.map(p=>({door:d.id,trailer:d.trailer,...p})));download(JSON.stringify({units:'pallets',simulatedSeconds:s.tick*DT,records,balance:t},null,2),'facility-dispatch.json');});
 }
@@ -161,11 +166,36 @@ $('speed').onchange=e=>{speed=Number(e.target.value);};
 $('follow').onclick=()=>{const {asset:a,table}=lookup(selected);const pick=table==='vehicles'?a:find(s.vehicles,relate(a,table)?.vehicle)||s.vehicles.find(v=>v.load)||s.vehicles[0];select(pick.id);};
 for(const [id,view] of [['overview','overview'],['plan','plan'],['aisle-camera','aisle'],['dock-camera','dock']])$(id).onclick=()=>setView(view);
 window.addEventListener('pagehide',persist);document.addEventListener('visibilitychange',()=>{lastTime=undefined;});
-s=recovery.scenario;if(recovery.issue)report(recovery.issue);
+s=recovery.scenario;freeState=s;freeView=recovery.view;if(recovery.issue)report(recovery.issue);
+function swapFloor(floor,play){
+  s=floor;running=play;carry=0;lastTime=undefined;chooseInitial();
+}
+desk=shiftDesk({profile:recovery.profile,storage,selected:()=>selected,choose:(id,focus=true)=>{setFold('inspect',true);select(id,focus);},dialog,orderForm,report,download,mutate:runAction,
+  saveFree:()=>{freeState=s;freeView={running,speed,selected,camera};persist();},
+  swap:swapFloor,
+  restoreFree:()=>{swapFloor(freeState,freeView?.running??!matchMedia('(prefers-reduced-motion: reduce)').matches);if(freeView?.selected&&lookup(freeView.selected).asset)select(freeView.selected,false);if(freeView?.camera)setView(freeView.camera);},
+  synced:()=>{running=false;carry=0;pose=poses();update(true);}
+});
+if(desk.active){s=desk.active.floor;running=false;}
 for(const [k,v] of Object.entries(flags))setFold(k,v);
-try{const {createFacilityScene}=await import('./scene.mjs');scene=await createFacilityScene($('facility-viewport'),{onSelect:id=>select(id),onCamera:view=>{if(typeof view==='string')camera=view;}});}catch(e){document.dispatchEvent(new CustomEvent('facility-start-failed',{detail:e.message}));}
+const viewport=$('facility-viewport');
+const controls={onSelect:id=>select(id),onCamera:view=>{if(typeof view==='string')camera=view;}};
+try{
+  const {createFacilityScene}=await import('./scene.mjs');
+  scene=await createFacilityScene(viewport,controls);
+}catch(error){
+  try{
+    viewport.replaceChildren();
+    const {facilityPlan}=await import('./plan.mjs');
+    scene=facilityPlan(viewport,controls);
+    report('3D unavailable. The interactive floor plan is ready.');
+  }catch(planError){
+    document.dispatchEvent(new CustomEvent('facility-start-failed',{detail:error.message+' / '+planError.message}));
+  }
+}
 if(scene){
-  chooseInitial();const saved=recovery.view;
+  chooseInitial();const saved=desk.active?null:recovery.view;
   if(saved){if([1,2,5,10].includes(saved.speed)){speed=saved.speed;$('speed').value=speed;}if(typeof saved.running==='boolean')running=saved.running&&!matchMedia('(prefers-reduced-motion: reduce)').matches;if(lookup(saved.selected).asset)select(saved.selected,false);if(['follow','overview','aisle','dock','plan','packing','floor'].includes(saved.camera))setView(saved.camera);update(true);}
+  const requestedJob=new URL(location.href).searchParams.get('job');if(requestedJob)desk.openJob(requestedJob);
   $('room').inert=false;$('recovery').hidden=true;document.body.inert=false;document.body.dataset.ready='true';requestAnimationFrame(animate);
 }

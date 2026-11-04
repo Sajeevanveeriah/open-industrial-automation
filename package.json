@@ -16,7 +16,7 @@
     "test:migration": "node scripts/potato-migration.mjs",
     "test:workshop": "node --test tests/workshop-*.test.mjs",
     "test:workshop-ui": "node scripts/workshop-ui.mjs && node scripts/workshop-cad-ui.mjs && node scripts/workshop-design-ui.mjs && node tests/workshop-fabric-browser.mjs && node tests/workshop-applied-ui.mjs && node tests/workshop-robot-ui.mjs && npm run test:studio",
-    "test:studio": "node scripts/workshop-studio-ui.mjs && node scripts/workshop-viewport-ui.mjs && node tests/workshop-analysis-browser.mjs && node tests/workshop-studio-part-browser.mjs && node scripts/workshop-startup-ui.mjs && node tests/workshop-facility-browser.mjs"
+    "test:studio": "node scripts/workshop-studio-ui.mjs && node scripts/workshop-viewport-ui.mjs && node tests/workshop-analysis-browser.mjs && node tests/workshop-studio-part-browser.mjs && node scripts/workshop-startup-ui.mjs && node tests/workshop-facility-browser.mjs && node tests/workshop-facility-shift-browser.mjs && node scripts/workshop-studio-practicals-ui.mjs && node tests/workshop-bracket-browser.mjs"
   },
   "devDependencies": {
     "axe-core": "4.12.1",
