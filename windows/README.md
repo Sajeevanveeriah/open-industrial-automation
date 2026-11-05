@@ -55,3 +55,7 @@ Start with an approved original CAD part and confirm units, up-axis and part hie
 Run `npm run test:crash` after the web build to exercise a forced renderer crash and abrupt development-process termination in a unique local profile. Its launch uses the development Electron executable and never opens a project from the installed application's profile.
 
 Use `node verify-jobs.cjs` with the packaged executable path to check the dispatch shift, PLC wiring and transfer case, conveyor drive commissioning, bracket measurement and mounting through the native user interface.
+
+## Project handoff
+
+Read the [project handoff](../HANDOFF.md) for current work, checks and the next step.

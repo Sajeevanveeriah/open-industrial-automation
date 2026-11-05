@@ -74,3 +74,7 @@ Purchase receipts join the conserved raw ledger in quality hold. Sales reservati
 Lifecycle gates require evidence and preceding acceptance. Controlled change reopens all gates. These are simulated review records, not approvals or certifications. Engineering review JSON includes complete systems state and the in-process integration contract; wiring and cabinet BOM export as CSV. Full run export/import preserves systems commands through deterministic replay.
 
 The new release retains limitations: no actual Dooen CAD or electrical drawings, vendor PLC/robot binaries, real OPC UA/MQTT connection, finite-element physics, microbiological validation, certified safety, durable shared backend or real financial transactions. Cabinet current is an illustrative three-phase estimate with assumed 415 V and 0.88 power factor; protective-device selection and conductor sizing are not established.
+
+## Project handoff
+
+Read the [project handoff](../HANDOFF.md) for current work, checks and the next step.

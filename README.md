@@ -71,3 +71,7 @@ The installer is written to `windows/release/`. The application loads its packag
 ## Third-party CAD components
 
 The workshop distributes the unmodified occt-import-js 0.0.23 WebAssembly module as separate, replaceable files in `vendor/occt/`. Both licence texts ship with the build. The module is built from [the corresponding converter source and build instructions](https://github.com/kovacsv/occt-import-js/tree/c2148e54b456b571238d35cac037d304053d64b2) and [the corresponding OCCT kernel revision](https://github.com/Open-Cascade-SAS/OCCT/tree/d2abb6d844231cb8f29be6894440874a4700e4a5). Rebuild or replace the module independently of the workshop. The offline SQL bench packages sql.js and its licence. FreeCAD is used separately to regenerate the original teaching parts with `scripts/generate-workshop-cad.py`.
+
+## Project handoff
+
+Read the [project handoff](HANDOFF.md) for current work, checks and the next step.
