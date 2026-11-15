@@ -573,3 +573,6 @@ main{padding-left:calc(var(--gutter,28px) + env(safe-area-inset-left));padding-r
   main{padding:0}
   .table-wrap{max-height:none;overflow:visible}
 }
+.proving-entry{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.35rem 1rem;margin:0 0 .85rem;padding:.7rem 1rem;border-left:4px solid #f5b700;border-radius:4px;background:#162944;color:#f8fafc;text-decoration:none}
+.proving-entry span{font-size:.82rem;color:#d5deeb}
+.proving-entry:hover,.proving-entry:focus-visible{background:#0f1e33;text-decoration:underline}

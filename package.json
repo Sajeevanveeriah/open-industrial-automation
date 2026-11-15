@@ -9,7 +9,7 @@
     "build": "node scripts/build.mjs",
     "verify:source": "node scripts/verify-source.mjs",
     "test": "npm run verify:source && npm run build && npm run test:delivery && npm run test:simulation && npm run test:workshop",
-    "test:simulation": "node --test tests/potato-engine.test.mjs tests/potato-systems.test.mjs",
+    "test:simulation": "node --test tests/potato-engine.test.mjs tests/potato-systems.test.mjs tests/proving-ground-model.test.mjs",
     "test:simulation-ui": "node scripts/potato-ui.mjs",
     "dev": "vite",
     "test:delivery": "node --test tests/potato-delivery.test.mjs",

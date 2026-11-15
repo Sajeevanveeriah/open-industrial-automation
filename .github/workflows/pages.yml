@@ -34,6 +34,14 @@ jobs:
       - run: npm run test:migration
       - run: npm run test:simulation-ui
       - run: npm run test:workshop-ui
+      - name: Verify the factory floor from the built site
+        shell: bash
+        run: |
+          python3 -m http.server 8080 --bind localhost --directory dist &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          curl --retry 5 --retry-connrefused --fail --silent http://localhost:8080/ > /dev/null
+          node scripts/proving-ground-ui.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -97,6 +105,7 @@ jobs:
           export OIA_BASE_URL="${OIA_BASE_URL%/}"
           npm run test:simulation-ui
           npm run test:workshop-ui
+          node scripts/proving-ground-ui.mjs
       - name: Upload live deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
