@@ -14,6 +14,8 @@ The plant overview and navigation link to `proving-ground/index.html`. The origi
 
 Claude Opus independently reviewed the simulation and cockpit. The fault injector and normal heat response use the same trip comparator. A stopped wash drum reports zero drive torque unless jammed. A paused model preserves its trend history. On clipboard permission failure, the selected frame stays paused for manual copying.
 
+The first public deployment returned HTTP 200 and matched merge `0d0e839`. Its desktop browser check found a 404 for the browser's implicit domain-root favicon. The proving-ground page now specifies the existing repository icon at `../icon.svg`. The browser regression checks console errors as well as uncaught exceptions.
+
 Rollback inspection: `git checkout backup-pre-3d-twin-20261115` restores the pre-change working tree at `1deec98da635b7846ec4ad0c5243f2f180119087`. Changing the local checkout does not revert a public deployment. To roll the public site back, revert the merged change on main through the normal release workflow and verify Pages.
 
 ## Work at 5 November 2026
