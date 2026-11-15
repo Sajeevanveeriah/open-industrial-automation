@@ -12,6 +12,8 @@ The plant overview and navigation link to `proving-ground/index.html`. The origi
 - Verification: `npm test` passed. Six new model test groups covered independent numerical expectations, scan ordering, physical motion, fault recovery, payload rejection and isolated FAT outcomes. Chrome rendered the four-zone view at 1440 x 940 and the narrow layout at 390 x 844. The desktop inspection observed 18.4 t/h at nominal speed and 0.0 t/h after an intake jam.
 - Repeat the HTTP and browser checks using the README commands. The Pages workflow also checks the deployed commit and exercises the proving ground at its public URL. Protocol messages, process costs, temperatures and PLC scan values are simulated. No industrial hardware was used.
 
+Claude Opus independently reviewed the simulation and cockpit. The fault injector and normal heat response use the same trip comparator. A stopped wash drum reports zero drive torque unless jammed. A paused model preserves its trend history. On clipboard permission failure, the selected frame stays paused for manual copying.
+
 Rollback inspection: `git checkout backup-pre-3d-twin-20261115` restores the pre-change working tree at `1deec98da635b7846ec4ad0c5243f2f180119087`. Changing the local checkout does not revert a public deployment. To roll the public site back, revert the merged change on main through the normal release workflow and verify Pages.
 
 ## Work at 5 November 2026

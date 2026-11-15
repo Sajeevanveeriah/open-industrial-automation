@@ -22,7 +22,7 @@ const byId = new Map(ASSETS.map(asset => [asset.id, asset]));
 const history = new Map(ASSETS.map(asset => [asset.id, []]));
 const streamSeq = new Map(ASSETS.map(asset => [asset.id, 0]));
 const number = new Intl.NumberFormat('en-AU', {maximumFractionDigits: 2});
-const metricName = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+const metricName = name => name === 'LoRaWANHeartbeat' ? 'LoRaWAN heartbeat' : name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
 const unit = text => text === 'deg C' ? '°C' : text;
 const valueText = metric => {
   const value = typeof metric.value === 'number' ? number.format(metric.value) : typeof metric.value === 'boolean' ? (metric.value ? 'On' : 'Off') : metric.value;
@@ -105,6 +105,7 @@ function trend(){
 function sampleTrend(){
   for(const asset of ASSETS){
     const samples=history.get(asset.id),value=telemetry(state,asset.id)[0].value;
+    if(samples.at(-1)?.time===state.seconds)continue;
     samples.push({time:state.seconds,value});
     while(samples.length>61 || samples[0].time<state.seconds-60)samples.shift();
   }
@@ -196,6 +197,7 @@ $('copy').addEventListener('click',async()=>{
     await navigator.clipboard.writeText(latestCopy);
     $('copy-status').textContent='Payload copied.';
   }catch{
+    paused=true;$('pause').textContent='Resume';$('pause').setAttribute('aria-pressed','true');
     const range=document.createRange();range.selectNodeContents($('payload'));
     const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     $('copy-status').textContent='Payload selected. Use your copy command.';
@@ -206,7 +208,7 @@ $('copy').addEventListener('click',async()=>{
 try{scene=createScene($('floor-viewport'),selectAsset);}
 catch{
   const fallback=element('div',undefined,'fallback');fallback.append(element('p','3D view unavailable. Select equipment to inspect the running plant.'));
-  for(const a of ASSETS)fallback.append(button(a.id,()=>selectAsset(a.id)));
+
   $('floor-viewport').replaceChildren(fallback);
   for(const b of $('cameras').children)b.disabled=true;
   $('orbit-help').textContent='The controls, telemetry stream and acceptance tests use the same simulated plant.';

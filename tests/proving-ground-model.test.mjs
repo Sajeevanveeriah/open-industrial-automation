@@ -105,3 +105,15 @@ test('FAT operates on isolated copies; feeder transfer bridges the outage and an
   advance(fail,.008);assert.equal(fail.stackerPowered,false);
   const phase=fail.cranePhase;advance(fail,2);assert.equal(fail.cranePhase,phase);
 });
+test('the thermal comparator isolates upstream motion at the measured threshold',()=>{
+  const hot=createState();
+  hot.fryerTemp=188.5;setPoint(hot,'heat',188.5);
+  advance(hot,0.008);
+  assert.equal(hot.thermalTrip,true);
+  assert.equal(hot.drumRpm,0);
+  assert.equal(telemetry(hot,'Z1-WB-01')[2].value,0);
+  const limit=createState();
+  limit.fryerTemp=188;setPoint(limit,'heat',188);
+  advance(limit,0.008);
+  assert.equal(limit.thermalTrip,false);
+});

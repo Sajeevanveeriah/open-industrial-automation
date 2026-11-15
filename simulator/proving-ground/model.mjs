@@ -25,9 +25,9 @@ const round = (n, digits = 2) => Number(n.toFixed(digits));
 function derive(s) {
   const blocked = s.faults.jam || s.thermalTrip;
   s.beltSpeed = blocked ? 0 : s.speed;
-  s.drumRpm = s.faults.jam || s.speed === 0 ? 0 : 12;
+  s.drumRpm = s.beltSpeed > 0 ? 12 : 0;
   s.robotCpm = s.beltSpeed * (14.2 / 1.6);
-  s.roverSpeed = s.faults.obstacle ? 0 : AMR_SPEED;
+  s.roverSpeed = s.faults.obstacle || s.soc <= 0 ? 0 : AMR_SPEED;
   s.humidity = s.faults.humidity ? 97.5 : 92;
   s.purge = s.humidity > 96;
   s.sorterPass = QUALITY * 100;
@@ -70,9 +70,17 @@ export function setPoint(s, key, value) {
 export function setFault(s, key, enabled) {
   if (!Object.hasOwn(s.faults, key) || typeof enabled !== 'boolean') throw TypeError('Invalid fault selection');
   s.faults[key] = enabled;
-  if (key === 'heat' && enabled) {s.fryerTemp = Math.max(192, s.fryerTemp); s.thermalTrip = true;}
+  if (key === 'heat' && enabled) {
+    s.fryerTemp = Math.max(192, s.fryerTemp);
+    updateThermalInterlock(s);
+  }
   derive(s);
   s.alarms = alarmList(s);
+}
+
+function updateThermalInterlock(s) {
+  if (s.fryerTemp > 188) s.thermalTrip = true;
+  else if (!s.faults.heat && s.fryerTemp < 184 && s.heat < 184) s.thermalTrip = false;
 }
 
 function scanPower(s) {
@@ -92,11 +100,10 @@ export function advance(s, deltaS) {
   s.remainder = Math.max(0, pending - count * SCAN_S);
   for (let i = 0; i < count; i++) {
     scanPower(s);
-    const thermalTarget = s.faults.heat ? 192 : s.thermalTrip ? 170 : s.heat;
+    const thermalTarget = s.faults.heat ? 192 : s.thermalTrip ? 20 : s.heat;
     s.fryerTemp += (thermalTarget - s.fryerTemp) * fryerGain;
     s.coldTemp += ((s.stackerPowered ? s.cold : 4) - s.coldTemp) * coldGain;
-    if (s.fryerTemp > 188) s.thermalTrip = true;
-    else if (!s.faults.heat && s.fryerTemp < 184 && s.heat < 184) s.thermalTrip = false;
+    updateThermalInterlock(s);
     s.scans++;
     s.seconds = s.scans * SCAN_S;
     derive(s);
@@ -123,14 +130,14 @@ export function status(s, id) {
 const metric = (name, value, unit, type = 'Double') => ({name, value: typeof value === 'number' ? round(value, 4) : value, unit, type});
 export function telemetry(s, id) {
   switch (id) {
-    case 'Z1-WB-01': return [metric('WashDrumSpeed', s.drumRpm, 'rpm'), metric('LineFeed', s.throughput, 't/h'), metric('DriveTorque', s.faults.jam ? 160 : 18 + 30 * s.speed, 'N m'), metric('JamInterlock', s.faults.jam, '', 'Boolean')];
+    case 'Z1-WB-01': return [metric('WashDrumSpeed', s.drumRpm, 'rpm'), metric('LineFeed', s.throughput, 't/h'), metric('DriveTorque', s.faults.jam ? 160 : s.drumRpm ? 18 + 30 * s.beltSpeed : 0, 'N m'), metric('JamInterlock', s.faults.jam, '', 'Boolean')];
     case 'Z2-SB-01': return [metric('RelativeHumidity', s.humidity, '% RH'), metric('BunkerTemperature', 4, 'deg C'), metric('DamperState', s.purge ? 'PURGE' : 'NORMAL', '', 'String'), metric('EvaporatorPower', s.purge ? 20 : 12, 'kW')];
     case 'Z3-PEEL-01': return [metric('SteamPressure', 1450, 'kPa'), metric('BrushSpeed', s.beltSpeed * 48 / 1.6, 'rpm'), metric('ProductFeed', s.throughput, 't/h'), metric('BrushDrive', s.beltSpeed > 0, '', 'Boolean')];
     case 'Z3-SORT-01': return [metric('OpticalPassRate', s.sorterPass, '%'), metric('RejectRate', s.throughput * (1 - QUALITY), 't/h'), metric('InspectionArray', s.beltSpeed > 0, '', 'Boolean'), metric('LineSpeed', s.beltSpeed, 'm/s')];
     case 'Z3-FRY-01': return [metric('OilTemperature', s.fryerTemp, 'deg C'), metric('DemandTemperature', s.heat, 'deg C'), metric('HeaterPower', s.heaterKw, 'kW'), metric('HighTemperatureTrip', s.thermalTrip, '', 'Boolean')];
     case 'Z4-ROB-01': return [metric('PalletisingRate', s.robotCpm, 'cpm'), metric('CyclePhase', s.robotAngle / TAU * 100, '%'), metric('ConveyorSpeed', s.beltSpeed, 'm/s'), metric('Vacuum', s.beltSpeed > 0 ? -72 : 0, 'kPa')];
     case 'Z4-CS-01': return [metric('StoreTemperature', s.coldTemp, 'deg C'), metric('DemandTemperature', s.cold, 'deg C'), metric('Feeder', s.feeder, '', 'String'), metric('CranePowerAvailable', s.stackerPowered, '', 'Boolean')];
-    case 'AMR-01': return [metric('GroundSpeed', s.roverSpeed, 'm/s'), metric('BatteryCharge', s.soc, '%'), metric('CANHeartbeat', Math.floor(s.seconds * 10) % 65536, '', 'UInt32'), metric('LoRaWANHeartbeat', Math.floor(s.seconds / 2) % 65536, '', 'UInt32')];
+    case 'AMR-01': return [metric('GroundSpeed', s.roverSpeed, 'm/s'), metric('BatteryCharge', s.soc, '%'), metric('CANHeartbeat', Math.floor(s.seconds * 10) % 4294967296, '', 'UInt32'), metric('LoRaWANHeartbeat', Math.floor(s.seconds / 2) % 4294967296, '', 'UInt32')];
     default: throw RangeError('Unknown plant asset');
   }
 }
