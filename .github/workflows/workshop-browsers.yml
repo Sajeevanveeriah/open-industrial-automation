@@ -41,4 +41,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - name: Verify the factory floor from the built site
+        shell: bash
+        run: |
+          python3 -m http.server 8080 --bind localhost --directory dist &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          curl --retry 5 --retry-connrefused --fail --silent http://localhost:8080/ > /dev/null
+          node scripts/proving-ground-ui.mjs
       - run: npm run test:studio

@@ -3,7 +3,7 @@
 const root = new URL('./', self.location.href);
 root.pathname = root.pathname.replace(/(?:suite|potato)\/$/, '');
 const owned = url => { const u = new URL(url); return u.origin === root.origin && u.pathname.startsWith(root.pathname); };
-const independentPage = url => ['engineering-docs/', 'workshop/'].some(prefix => new URL(url).pathname.startsWith(root.pathname + prefix));
+const independentPage = url => ['engineering-docs/', 'workshop/', 'proving-ground/'].some(prefix => new URL(url).pathname.startsWith(root.pathname + prefix));
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   for (const name of await caches.keys()) {

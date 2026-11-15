@@ -2,6 +2,46 @@
 
 A browser simulation of the complete potato material journey for independent Farm Frites Dooen engineering review. The plant opens at the existing root URL. Choose **Engineering workshop** in its navigation to build a packaging cell.
 
+## Voltwyn Factory Floor Proving Ground
+
+Open **Voltwyn Factory Floor Proving Ground** on the [plant overview](https://sajeevanveeriah.github.io/open-industrial-automation/) or [open the proving ground directly](https://sajeevanveeriah.github.io/open-industrial-automation/proving-ground/index.html). The static build copies the simulator into `dist/` and serves the existing Three.js module locally. Use the six camera presets, orbit, pan or zoom, and select equipment in the scene or the asset list.
+
+| Architecture pillar | What to inspect or operate |
+|---|---|
+| 1. Physical System | Reception, storage, processing, packing, cold-store machinery and material flow |
+| 2. Sensing | Weighing, temperature, humidity, optical inspection and rover telemetry |
+| 3. Control | Line and thermal setpoints, drives, purge demand and interlock responses |
+| 4. Autonomy | Rover waypoint travel, obstacle hold, palletising and crane motion |
+| 5. Industrial IT/AI | Sorter results, equipment metrics and the local message console |
+| 6. Verification | Six factory acceptance tests with observations from controlled simulations |
+
+The ISA-95 equipment path begins with enterprise **Voltwyn** and site **Dooen-Digital-Twin**. Each work centre has its own ID. Runtime and protocol labels describe the synthetic architecture.
+
+| Area | Work centre | Equipment | Primary interface | Nominal observation |
+|---|---|---|---|---|
+| Z1 | Z1-WB-01 | Dual weighbridge, hopper and wash drum | Modbus TCP | Drum 12 rpm |
+| Z2 | Z2-SB-01 | Four climate-controlled bunkers | OPC UA | 4.0 °C and 92 % RH |
+| Z3 | Z3-PEEL-01 | Steam peeler and brush tables | Modbus TCP | 1450 kPa |
+| Z3 | Z3-SORT-01 | Optical sorter and reject chute | MQTT Sparkplug B model | 99.4 % pass |
+| Z3 | Z3-FRY-01 | Continuous fryer | OPC UA | 175.0 °C |
+| Z4 | Z4-ROB-01 | Six-axis palletiser | OPC UA | 14.2 cycles/min at 1.6 m/s |
+| Z4 | Z4-CS-01 | High-bay cold store and stacker | OPC UA | -20.0 °C |
+| Perimeter | AMR-01 | Gendio rover and LiDAR | CAN / LoRaWAN | 88 % initial charge |
+
+At the nominal 1.6 m/s, gross throughput is 18.4 t/h. Specific energy divides current electrical demand in kW by gross throughput in t/h and is undefined at zero flow. OEE compares cumulative good tonnes with ideal output over simulated time. The illustrative operating rate comprises 96 AUD/h fixed cost, 0.24 AUD/kWh of electrical demand and 3.20 AUD/t of throughput.
+
+The console shows the requested JSON view at `spBv1.0/Voltwyn/NDATA/Dooen/<AssetID>`. It runs locally without a broker. For interoperability, standard Sparkplug B uses binary Protobuf payloads and distinguishes node data (NDATA) from device data (DDATA). The FAT suite tests the documented simulation and JSON representation. Physical PLC timings, fieldbus delivery and machinery safety require separate evidence. [Eclipse Sparkplug specification, accessed 15 November 2026](https://sparkplug.eclipse.org/specification/version/3.0/documents/sparkplug-specification-3.0.0.pdf)
+
+To run and verify this workspace locally, build from the repository root and serve the built site:
+
+```sh
+npm ci
+npm run build
+python -m http.server 8080 --bind localhost --directory dist
+```
+
+Open [the local proving ground](http://localhost:8080/proving-ground/index.html). With that server running, use `node --test tests/proving-ground-model.test.mjs` and `node scripts/proving-ground-ui.mjs`. The browser check uses Playwright Chromium or the executable named in `OIA_CHROMIUM`.
+
 ## Run
 
 ```sh

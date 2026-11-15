@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0F1E33">
+<title>Factory Floor Proving Ground | Voltwyn</title>
+<link rel="stylesheet" href="./cockpit.css">
+</head>
+<body>
+<a class="skip-link" href="#floor">Skip to factory floor</a>
+<header class="mast">
+  <div class="brand"><svg viewBox="0 0 44 44" aria-hidden="true"><path d="M5 8L17.5 36H21.5L11.5 8H5Z" fill="#F8FAFC"/><path d="M27.5 8L21 21.5H27.5L18.5 36L35 18.5H27.5L34 8H27.5Z" fill="#F5B700"/><path d="M35.5 8L26.5 29.5L29.5 34.5L39.5 8H35.5Z" fill="#94A3B8"/></svg><span>VOLT<b>WYN</b></span></div>
+  <div class="title"><h1>Factory Floor Proving Ground</h1><p>Dooen digital twin <span>/</span> Synthetic process simulation</p></div>
+  <div class="clock-block"><small>Australia / Melbourne</small><time id="clock"></time></div>
+</header>
+<section class="kpis" aria-label="Plant performance">
+  <div><span>Throughput</span><strong id="kpi-throughput"></strong><small>t/h</small></div>
+  <div><span>Specific energy</span><strong id="kpi-energy"></strong><small>kWh/t</small></div>
+  <div><span>Plant OEE</span><strong id="kpi-oee"></strong><small>%</small></div>
+  <div><span>Active alarms</span><strong id="kpi-alarms"></strong><small>active</small></div>
+  <div><span>Operating rate</span><strong id="kpi-rate"></strong><small>AUD/h</small></div>
+</section>
+<nav id="pillars" class="pillars" aria-label="Architecture pillar filters"></nav>
+<main class="deck">
+  <section class="panel floor" id="floor" aria-labelledby="floor-title">
+    <header class="heading"><div><small>Physical system</small><h2 id="floor-title">Factory floor</h2></div><span id="camera-name" class="tag">Overview</span></header>
+    <div id="floor-viewport" aria-label="Selectable factory equipment in a 3D viewport"></div>
+    <div class="camera-controls" id="cameras" aria-label="Camera presets"></div>
+    <p id="orbit-help" class="help">Drag to orbit. Shift-drag or right-drag to pan. Scroll to zoom. Select equipment to inspect.</p>
+    <section class="alarm-panel" aria-labelledby="alarm-title"><h3 id="alarm-title">Alarm register</h3><div id="alarm-list"></div></section>
+  </section>
+  <aside class="panel control" aria-labelledby="control-title">
+    <header class="heading"><div><small>Operator station</small><h2 id="control-title">Process controls</h2></div></header>
+    <section class="block"><h3>Process setpoints</h3><div id="setpoints"></div></section>
+    <section class="block"><h3>Fault injection</h3><div id="faults"></div></section>
+    <section class="block"><h3>Factory acceptance test</h3><p class="help">Exercise six checks on an isolated copy of the model.</p><button id="run-fat" class="primary" type="button">Run 6-Step FAT</button><ol id="fat-results"></ol><output id="fat-summary" role="status"></output></section>
+  </aside>
+  <aside class="panel inspector" aria-labelledby="inspector-title">
+    <header class="heading"><div><small>ISA-95 equipment</small><h2 id="inspector-title">Asset inspector</h2></div><i class="beacon" aria-hidden="true"></i></header>
+    <section class="block identity"><label for="asset-select">Quick jump</label><select id="asset-select"></select><h3 id="asset-name"></h3><p id="asset-path" class="path"></p>
+      <dl class="fields"><div><dt>Runtime</dt><dd id="runtime"></dd></div><div><dt>Protocol</dt><dd id="protocol"></dd></div><div><dt>Scan rate</dt><dd id="scan"></dd></div></dl>
+      <div class="statusline"><span>Asset state</span><strong id="asset-status" class="status"></strong></div>
+    </section>
+    <section class="block"><h3>Live telemetry</h3><div id="telemetry"></div><div class="trend-title"><h4 id="trend-name"></h4><span>60 s</span></div><canvas id="trend" role="img" aria-label="Live primary process variable over the last 60 seconds"></canvas><div class="trend-scale"><span id="trend-range"></span><span>Now</span></div></section>
+    <section class="block stream"><h3>MQTT / Sparkplug B</h3><p class="help">Local JSON view of the selected asset, sampled at 1 Hz.</p><p id="topic"></p><pre id="payload" tabindex="0" aria-label="Latest telemetry payload"></pre><div class="stream-actions"><button id="pause" type="button" aria-pressed="false">Pause</button><button id="copy" type="button">Copy payload</button></div><output id="copy-status" role="status"></output></section>
+  </aside>
+</main>
+<footer><span>Voltwyn <span class="sep">/</span> Dooen-Digital-Twin</span><nav aria-label="Other workspaces"><a href="../#plant">Reference plant</a><a href="../workshop/index.html">Engineering workshop</a></nav></footer>
+<noscript>Enable JavaScript to operate the proving ground.</noscript>
+<script type="module" src="./cockpit.mjs"></script>
+</body></html>

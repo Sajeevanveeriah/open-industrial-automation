@@ -2,6 +2,18 @@
 
 Develop the browser and Windows engineering workshop alongside the potato-process simulation.
 
+## 2026-11-15 revision - Voltwyn Factory Floor Proving Ground
+
+The plant overview and navigation link to `proving-ground/index.html`. The original plant and workshop remain available. The build copies static assets to `dist/`; the new scene imports the bundled Three.js. The service worker permits the new independent route.
+
+- `simulator/proving-ground/model.mjs`: equipment register, fixed 8 ms simulated scan, demand and interlock logic, plant metrics, JSON frames and six isolated FAT trials.
+- `scene.mjs`: selectable equipment, animated machinery and product, camera presets, custom orbit/pan/zoom and a selectable floor-plan fallback.
+- `cockpit.mjs`, `cockpit.css` and `index.html`: controls, local Melbourne clock, plant KPIs, trends and a pausable console.
+- Verification: `npm test` passed. Six new model test groups covered independent numerical expectations, scan ordering, physical motion, fault recovery, payload rejection and isolated FAT outcomes. Chrome rendered the four-zone view at 1440 x 940 and the narrow layout at 390 x 844. The desktop inspection observed 18.4 t/h at nominal speed and 0.0 t/h after an intake jam.
+- Repeat the HTTP and browser checks using the README commands. The Pages workflow also checks the deployed commit and exercises the proving ground at its public URL. Protocol messages, process costs, temperatures and PLC scan values are simulated. No industrial hardware was used.
+
+Rollback inspection: `git checkout backup-pre-3d-twin-20261115` restores the pre-change working tree at `1deec98da635b7846ec4ad0c5243f2f180119087`. Changing the local checkout does not revert a public deployment. To roll the public site back, revert the merged change on main through the normal release workflow and verify Pages.
+
 ## Work at 5 November 2026
 
 Source baseline: [main at e196d09b](https://github.com/Sajeevanveeriah/open-industrial-automation/commit/e196d09ba7d8e7c13c532f3e324fa1d5ed4696fb). Use the linked revision to distinguish these changes from later work.
